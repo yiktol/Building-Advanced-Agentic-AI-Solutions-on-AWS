@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 from style import inject_css, part_header
+import agent_utils
 from agent_utils import create_agent, chat_response, MODEL_ID
 from strands import Agent, tool
 from strands.models import BedrockModel
@@ -51,6 +52,55 @@ if part == "Part 1 — Single Agent":
     if "m1p1_agent" not in st.session_state:
         st.session_state.m1p1_agent = None
         st.session_state.m1p1_msgs = []
+        st.session_state.m1p1_judgments = []
+
+    # --- Judge Model Configuration ---
+    JUDGE_SYSTEM_PROMPT = """You are a Judge Model evaluating an AI customer service agent's response for signs of COGNITIVE LOAD issues.
+
+The agent being evaluated handles billing, tech support, AND product queries simultaneously.
+
+Evaluate the agent's response on these criteria (score each 1-5, where 1 = major issue, 5 = no issue):
+
+1. **Domain Accuracy**: Did the agent apply the correct domain knowledge? (e.g., not mixing billing procedures with tech troubleshooting)
+2. **Context Retention**: Did the agent maintain relevant context from the user's query without hallucinating or losing key details?
+3. **Specificity**: Did the agent provide domain-expert level detail, or was it overly generic / surface-level?
+4. **Domain Confusion**: Did the agent bleed information from one domain into another where it doesn't belong?
+5. **Actionability**: Did the agent provide clear, actionable next steps appropriate to the domain?
+
+Output format:
+**Cognitive Load Assessment**
+
+| Criterion | Score | Observation |
+|-----------|-------|-------------|
+| Domain Accuracy | X/5 | ... |
+| Context Retention | X/5 | ... |
+| Specificity | X/5 | ... |
+| Domain Confusion | X/5 | ... |
+| Actionability | X/5 | ... |
+
+**Overall Score: X/25**
+
+**Verdict:** [PASS ✅ | MARGINAL ⚠️ | FAIL ❌]
+- PASS (20-25): Agent handled query well despite broad scope
+- MARGINAL (13-19): Some signs of cognitive overload
+- FAIL (≤12): Clear evidence of cognitive overload impacting quality
+
+**Key Observations:** 1-2 sentences on how cognitive load affected (or didn't affect) the response.
+"""
+
+    def judge_response(user_query: str, agent_response: str) -> str:
+        """Use a Judge Model to evaluate the agent's response for cognitive load issues."""
+        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id())
+        judge_agent = Agent(model=judge_model, system_prompt=JUDGE_SYSTEM_PROMPT)
+        evaluation_prompt = f"""Evaluate this single-agent interaction:
+
+**User Query:** {user_query}
+
+**Agent Response:** {agent_response}
+
+Assess whether the agent showed signs of cognitive overload from handling multiple domains."""
+        result = judge_agent(evaluation_prompt)
+        return str(result)
 
     with st.expander("💡 Suggested Prompts", expanded=False):
         st.caption("• I was charged $9.99 but cancelled. Order TM-78432.")
@@ -66,9 +116,15 @@ PRODUCTS: TechMart Pro 15 ($799), Air ($599), Titan ($1299), Hub ($149).
 Always verify identity before account changes."""
         )
 
-    for msg in st.session_state.m1p1_msgs:
+    for idx, msg in enumerate(st.session_state.m1p1_msgs):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+        # Show judgment after assistant messages
+        if msg["role"] == "assistant":
+            judgment_idx = idx // 2  # Each pair (user, assistant) has one judgment
+            if judgment_idx < len(st.session_state.m1p1_judgments):
+                with st.expander(f"🧑‍⚖️ Judge Evaluation", expanded=False):
+                    st.markdown(st.session_state.m1p1_judgments[judgment_idx])
 
     # Suggestion chips
     if not st.session_state.m1p1_msgs:
@@ -83,6 +139,12 @@ Always verify identity before account changes."""
                     resp = chat_response(st.session_state.m1p1_agent, selected)
                 st.markdown(resp)
             st.session_state.m1p1_msgs.append({"role": "assistant", "content": resp})
+            # Judge evaluation
+            with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
+                with st.spinner("Judge Model evaluating..."):
+                    judgment = judge_response(selected, resp)
+                st.markdown(judgment)
+            st.session_state.m1p1_judgments.append(judgment)
             st.rerun()
 
     if prompt := st.chat_input("Chat with single agent...", submit_mode="disable"):
@@ -94,6 +156,12 @@ Always verify identity before account changes."""
                 resp = chat_response(st.session_state.m1p1_agent, prompt)
             st.markdown(resp)
         st.session_state.m1p1_msgs.append({"role": "assistant", "content": resp})
+        # Judge evaluation
+        with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
+            with st.spinner("Judge Model evaluating..."):
+                judgment = judge_response(prompt, resp)
+            st.markdown(judgment)
+        st.session_state.m1p1_judgments.append(judgment)
 
 # =============================================================================
 # PART 2: Orchestrator
@@ -109,6 +177,54 @@ elif part == "Part 2 — Orchestrator":
     if "m1p2_orch" not in st.session_state:
         st.session_state.m1p2_orch = None
         st.session_state.m1p2_msgs = []
+        st.session_state.m1p2_judgments = []
+
+    # --- Judge Model for Orchestrator ---
+    JUDGE_ORCH_SYSTEM_PROMPT = """You are a Judge Model evaluating an ORCHESTRATOR agent that routes customer queries to specialist agents (Billing, Tech Support, Product).
+
+Evaluate the orchestrator's response on these criteria (score each 1-5, where 1 = major issue, 5 = excellent):
+
+1. **Routing Accuracy**: Did the orchestrator route the query to the correct specialist(s)? (Billing for refunds/charges, Tech for devices/firmware, Product for recommendations)
+2. **Delegation Completeness**: For multi-domain queries, did it correctly identify ALL relevant domains and route to each?
+3. **Synthesis Quality**: Did the orchestrator combine specialist responses into a coherent, unified answer?
+4. **Information Preservation**: Was important specialist detail preserved (not lost or oversimplified) in the final response?
+5. **Efficiency**: Did it avoid unnecessary routing (e.g., sending a pure billing question to tech support)?
+
+Output format:
+**Orchestrator Evaluation**
+
+| Criterion | Score | Observation |
+|-----------|-------|-------------|
+| Routing Accuracy | X/5 | ... |
+| Delegation Completeness | X/5 | ... |
+| Synthesis Quality | X/5 | ... |
+| Information Preservation | X/5 | ... |
+| Efficiency | X/5 | ... |
+
+**Overall Score: X/25**
+
+**Verdict:** [PASS ✅ | MARGINAL ⚠️ | FAIL ❌]
+- PASS (20-25): Orchestrator routed and synthesized effectively
+- MARGINAL (13-19): Some routing or synthesis issues
+- FAIL (≤12): Significant routing errors or lost information
+
+**Key Observations:** 1-2 sentences on routing quality vs. the single-agent approach.
+"""
+
+    def judge_orchestrator_response(user_query: str, agent_response: str) -> str:
+        """Use a Judge Model to evaluate the orchestrator's routing and synthesis."""
+        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id())
+        judge_agent = Agent(model=judge_model, system_prompt=JUDGE_ORCH_SYSTEM_PROMPT)
+        evaluation_prompt = f"""Evaluate this orchestrator interaction:
+
+**User Query:** {user_query}
+
+**Orchestrator Response:** {agent_response}
+
+The orchestrator has access to 3 specialist tools: ask_billing, ask_tech, ask_product.
+Assess whether it routed correctly and synthesized the specialist responses well."""
+        result = judge_agent(evaluation_prompt)
+        return str(result)
 
     st.markdown("**Routing:** 📋 Billing | 🔧 Tech | 🛍️ Product")
 
@@ -133,25 +249,38 @@ elif part == "Part 2 — Orchestrator":
             return str(product(query))
 
         st.session_state.m1p2_orch = create_agent(
-            """You are a Customer Service Orchestrator. Route queries to specialists.
+            """You are a Customer Service Orchestrator. You MUST route ALL customer queries to the appropriate specialist agent(s) using your tools. You NEVER answer questions directly — you ALWAYS delegate.
+
+CRITICAL: You do NOT have domain knowledge. You MUST call at least one tool for every user message.
 
 ROUTING RULES:
-- Billing (refunds, charges) → ask_billing
-- Technical (devices, firmware) → ask_tech
-- Products (recommendations) → ask_product
+- Billing (refunds, charges, payments, subscriptions) → call ask_billing
+- Technical (devices, firmware, Wi-Fi, troubleshooting) → call ask_tech
+- Products (recommendations, pricing, specs) → call ask_product
 
 DELEGATION STRATEGY:
-- Simple fact-finding (price, status): Route to 1 specialist, expect 1 tool call.
-- Complex queries spanning domains: Route to multiple specialists, synthesize responses.
-- If unsure which specialist: Route to the most likely one first.
+- Simple queries: Call the 1 most relevant specialist tool.
+- Complex or multi-domain queries: Call MULTIPLE specialist tools, then synthesize their responses.
+- If unsure which specialist: Call the most likely one first.
 
-For multi-domain queries, break into parts and route each to the appropriate specialist.""",
+WORKFLOW:
+1. Identify domain(s) in the user query
+2. Call the appropriate tool(s) — this is MANDATORY
+3. Synthesize the specialist response(s) into a coherent answer for the customer
+
+NEVER respond without first calling a tool. If you respond without calling a tool, you have failed.""",
             tools=[ask_billing, ask_tech, ask_product],
         )
 
-    for msg in st.session_state.m1p2_msgs:
+    for idx, msg in enumerate(st.session_state.m1p2_msgs):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+        # Show judgment after assistant messages
+        if msg["role"] == "assistant":
+            judgment_idx = idx // 2
+            if judgment_idx < len(st.session_state.m1p2_judgments):
+                with st.expander("🧑‍⚖️ Judge Evaluation", expanded=False):
+                    st.markdown(st.session_state.m1p2_judgments[judgment_idx])
 
     # Suggestion chips
     if not st.session_state.m1p2_msgs:
@@ -166,6 +295,12 @@ For multi-domain queries, break into parts and route each to the appropriate spe
                     resp = chat_response(st.session_state.m1p2_orch, selected)
                 st.markdown(resp)
             st.session_state.m1p2_msgs.append({"role": "assistant", "content": resp})
+            # Judge evaluation
+            with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
+                with st.spinner("Judge Model evaluating..."):
+                    judgment = judge_orchestrator_response(selected, resp)
+                st.markdown(judgment)
+            st.session_state.m1p2_judgments.append(judgment)
             st.rerun()
 
     if prompt := st.chat_input("Chat with orchestrator...", submit_mode="disable"):
@@ -177,6 +312,12 @@ For multi-domain queries, break into parts and route each to the appropriate spe
                 resp = chat_response(st.session_state.m1p2_orch, prompt)
             st.markdown(resp)
         st.session_state.m1p2_msgs.append({"role": "assistant", "content": resp})
+        # Judge evaluation
+        with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
+            with st.spinner("Judge Model evaluating..."):
+                judgment = judge_orchestrator_response(prompt, resp)
+            st.markdown(judgment)
+        st.session_state.m1p2_judgments.append(judgment)
 
 # =============================================================================
 # PART 3: Agent-as-Tool
@@ -440,7 +581,7 @@ elif part == "Auto-run Walkthrough":
                     return str(product(q))
 
                 st.session_state.m1_walk_orch = create_agent(
-                    "Orchestrator: route to ask_billing, ask_tech, ask_product. Be concise.",
+                    "You are an Orchestrator. You MUST call the appropriate tool for EVERY query — NEVER answer directly. Route billing queries to ask_billing, tech queries to ask_tech, product queries to ask_product. For multi-domain queries, call multiple tools. Be concise.",
                     tools=[ask_billing, ask_tech, ask_product],
                 )
 

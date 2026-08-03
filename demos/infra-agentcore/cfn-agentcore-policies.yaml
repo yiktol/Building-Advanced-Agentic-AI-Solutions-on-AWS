@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Cedar Policies (Module 3) - requires policy engine and gateway stacks deployed first'
+
+Parameters:
+  PolicyEngineId:
+    Type: String
+    Description: 'PolicyEngineId from the mladas-agentcore-policy stack output'
+    MaxLength: 59
+  GatewayArn:
+    Type: String
+    Description: 'Gateway ARN from the mladas-agentcore-gateway stack output'
+
+Resources:
+  AllowProductLookupPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: allow_all_product_lookup
+      Description: 'All authenticated users can look up products'
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            permit (
+              principal,
+              action == AgentCore::Action::"product-lookup___productLookup",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            );
+
+  AllowAllCompatibilityCheckPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: allow_all_compatibility_check
+      Description: 'All authenticated users can check product compatibility'
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            permit (
+              principal,
+              action == AgentCore::Action::"compatibility-check___compatibilityCheck",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            );
+
+  AllowSupportOrderStatusPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: allow_support_order_status
+      Description: 'Support and finance staff can check order status'
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            permit (
+              principal,
+              action == AgentCore::Action::"order-status___orderStatus",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            )
+            when {
+              principal.department == "support" ||
+              principal.department == "finance"
+            };
+
+  ForbidEngineerOrderStatusPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: forbid_engineer_order_status
+      Description: 'Engineers cannot access order status'
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            forbid (
+              principal,
+              action == AgentCore::Action::"order-status___orderStatus",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            )
+            when {
+              principal.department == "engineering"
+            };
+
+Outputs:
+  AllowProductLookupPolicyId:
+    Value: !GetAtt AllowProductLookupPolicy.PolicyId
+
+  AllowCompatibilityCheckPolicyId:
+    Value: !GetAtt AllowAllCompatibilityCheckPolicy.PolicyId
+
+  AllowSupportOrderStatusPolicyId:
+    Value: !GetAtt AllowSupportOrderStatusPolicy.PolicyId
+
+  ForbidEngineerOrderStatusPolicyId:
+    Value: !GetAtt ForbidEngineerOrderStatusPolicy.PolicyId

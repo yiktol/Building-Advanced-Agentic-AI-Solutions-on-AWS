@@ -4,6 +4,8 @@ Main entry point with modern UI/UX.
 """
 
 import streamlit as st
+import boto3
+from botocore.exceptions import ClientError
 
 st.set_page_config(
     page_title="Building Advanced Agentic Systems on AWS",
@@ -11,6 +13,31 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# --- Auto-detect CloudFormation Stack Outputs ---
+@st.cache_data(ttl=300)
+def get_cfn_outputs():
+    """Derive service configuration from infra-agentcore CloudFormation stack outputs."""
+    prefix = "mladas-agentcore"
+    stacks = ["memory", "evaluator", "gateway", "policy", "guardrail"]
+    outputs = {}
+
+    try:
+        cfn = boto3.client("cloudformation")
+        for component in stacks:
+            stack_name = f"{prefix}-{component}"
+            try:
+                resp = cfn.describe_stacks(StackName=stack_name)
+                for output in resp["Stacks"][0].get("Outputs", []):
+                    outputs[output["OutputKey"]] = output["OutputValue"]
+            except ClientError:
+                # Stack doesn't exist or isn't accessible
+                continue
+    except Exception:
+        pass
+
+    return outputs
 
 # --- Custom CSS for modern styling ---
 st.markdown("""
@@ -91,6 +118,12 @@ st.markdown("""
 with st.expander("⚙️ Service Configuration — Connect real AWS services", expanded=True):
     st.caption("Enter resource IDs to connect real AWS services. Leave empty for local fallback.")
 
+    # Auto-detect from CloudFormation
+    cfn_outputs = get_cfn_outputs()
+    if cfn_outputs:
+        detected = ", ".join(cfn_outputs.keys())
+        st.success(f"🔍 Auto-detected from CloudFormation stacks: {detected}")
+
     # --- Model Selection ---
     st.markdown("**:material/smart_toy: Model Configuration**")
     mcol1, mcol2 = st.columns(2)
@@ -144,23 +177,37 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
     with c1:
         st.markdown("**:material/memory: AgentCore Memory**")
         st.caption("Enables shared memory across agents (Module 1 Part 4). Provides semantic search retrieval for cross-agent collaboration.")
-        st.text_input("Memory ID", key="cfg_SharedMemoryId", placeholder="mladas_shared_memory-xxx")
+        st.text_input("Memory ID", key="cfg_SharedMemoryId",
+                      value=cfn_outputs.get("SharedMemoryId", ""),
+                      placeholder="mladas_shared_memory-xxx")
         st.markdown("**:material/shield: Bedrock Guardrail**")
         st.caption("Protects all agent inputs/outputs with content filtering and PII detection. Applied globally to all modules.")
-        st.text_input("Guardrail ID", key="cfg_GuardrailId", placeholder="7cv8wi8poz7f")
-        st.text_input("Guardrail Version", key="cfg_GuardrailVersion", value="DRAFT")
+        st.text_input("Guardrail ID", key="cfg_GuardrailId",
+                      value=cfn_outputs.get("GuardrailId", ""),
+                      placeholder="7cv8wi8poz7f")
+        st.text_input("Guardrail Version", key="cfg_GuardrailVersion",
+                      value=cfn_outputs.get("GuardrailVersion", "DRAFT"))
     with c2:
         st.markdown("**:material/analytics: AgentCore Evaluator**")
         st.caption("Replaces local LLM-as-judge with real AgentCore Evaluations API (Module 4 Part 3). Use built-in IDs like `Builtin.Correctness`.")
-        st.text_input("Evaluator ID", key="cfg_ToolSelectionEvaluatorId", placeholder="Builtin.Correctness")
+        st.text_input("Evaluator ID", key="cfg_ToolSelectionEvaluatorId",
+                      value=cfn_outputs.get("ToolSelectionEvaluatorId", ""),
+                      placeholder="Builtin.Correctness")
         st.markdown("**:material/policy: Verified Permissions**")
         st.caption("Enables Cedar policy authorization for agent tool calls (Module 3 Part 2). Controls refund limits per role.")
-        st.text_input("Policy Store ID", key="cfg_PolicyStoreId", placeholder="MUXmjAfT8j...")
+        st.text_input("Policy Store ID", key="cfg_PolicyStoreId",
+                      value=cfn_outputs.get("PolicyEngineId", ""),
+                      placeholder="MUXmjAfT8j...")
     with c3:
         st.markdown("**:material/person: Amazon Cognito**")
         st.caption("Enables real OAuth 2.0 authentication with JWT tokens (Module 3 Part 3). Users authenticate and claims drive authorization.")
         st.text_input("Cognito User Pool ID", key="cfg_CognitoUserPoolId", placeholder="ap-southeast-1_abc123")
         st.text_input("Cognito Client ID", key="cfg_CognitoClientId", placeholder="7eq16iqg...")
+        st.markdown("**:material/hub: AgentCore Gateway**")
+        st.caption("MCP-compatible tool gateway for centralized tool access (Module 1 Part 3).")
+        st.text_input("Gateway ID", key="cfg_GatewayId",
+                      value=cfn_outputs.get("GatewayId", ""),
+                      placeholder="mladas-tool-gateway-xxx")
     # Status
     try:
         from agentcore_utils import get_agentcore_status

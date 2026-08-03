@@ -22,6 +22,7 @@ STACKS=(
     "evaluator:cfn-agentcore-evaluator.yaml"
     "gateway:cfn-agentcore-gateway.yaml"
     "policy:cfn-agentcore-policy.yaml"
+    "policies:cfn-agentcore-policies.yaml"
     "guardrail:cfn-bedrock-guardrail.yaml"
 )
 
@@ -56,12 +57,36 @@ for entry in "${STACKS[@]}"; do
     fi
 
     echo -n "  [$name] $stack_name..."
+    EXTRA_PARAMS=""
+    if [ "$name" == "policies" ]; then
+        # Get PolicyEngineId from the policy engine stack
+        POLICY_ENGINE_ID=$(aws cloudformation describe-stacks \
+            --stack-name "${PREFIX}-policy" \
+            --region "$REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='PolicyEngineId'].OutputValue" \
+            --output text 2>/dev/null)
+        GATEWAY_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${PREFIX}-gateway" \
+            --region "$REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='GatewayArn'].OutputValue" \
+            --output text 2>/dev/null)
+        if [ -z "$POLICY_ENGINE_ID" ] || [ "$POLICY_ENGINE_ID" == "None" ]; then
+            echo " ✗ (policy engine stack not ready)"
+            continue
+        fi
+        if [ -z "$GATEWAY_ARN" ] || [ "$GATEWAY_ARN" == "None" ]; then
+            echo " ✗ (gateway stack not ready)"
+            continue
+        fi
+        EXTRA_PARAMS="--parameter-overrides PolicyEngineId=$POLICY_ENGINE_ID GatewayArn=$GATEWAY_ARN"
+    fi
     if aws cloudformation deploy \
         --template-file "$template" \
         --stack-name "$stack_name" \
         --region "$REGION" \
+        --capabilities CAPABILITY_NAMED_IAM \
         --no-fail-on-empty-changeset \
-        --tags Project=mladas-demo 2>/dev/null; then
+        --tags Project=mladas-demo $EXTRA_PARAMS 2>/dev/null; then
         echo " ✓"
     else
         echo " ✗ (check events)"

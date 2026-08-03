@@ -1,19 +1,41 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'AgentCore Gateway with MCP tool targets (Module 1 Part 3, Module 2 Part 5)'
 
-Parameters:
-  ProductLookupLambdaArn:
-    Type: String
-    Default: ''
-    Description: 'ARN of Lambda function for product lookup (optional — can use inline target)'
-
 Resources:
+  GatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mladas-gateway-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: GatewayInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: '*'
+
   ToolGateway:
     Type: AWS::BedrockAgentCore::Gateway
+    DependsOn: GatewayRole
     Properties:
       Name: mladas-tool-gateway
       Description: 'Centralized MCP-compatible tool gateway for TechMart demos'
-      ProtocolType: MCP
+      AuthorizerType: NONE
+      RoleArn: !GetAtt GatewayRole.Arn
+      ProtocolConfiguration:
+        Mcp:
+          Instructions: 'TechMart customer service tool gateway providing product lookup, compatibility checking, and order status tools.'
 
   ProductLookupTarget:
     Type: AWS::BedrockAgentCore::GatewayTarget
@@ -21,17 +43,26 @@ Resources:
       GatewayIdentifier: !Ref ToolGateway
       Name: product-lookup
       Description: 'Look up TechMart product details including specs, price, and availability.'
+      CredentialProviderConfigurations:
+        - CredentialProviderType: GATEWAY_IAM_ROLE
+          CredentialProvider:
+            IamCredentialProvider:
+              Service: lambda
+              Region: !Ref AWS::Region
       TargetConfiguration:
-        McpTarget:
+        Mcp:
           OpenApiSchema:
-            Payload: |
+            InlinePayload: |
               openapi: "3.0.0"
               info:
                 title: Product Lookup
                 version: "1.0"
+              servers:
+                - url: https://api.techmart.example.com
               paths:
                 /lookup:
                   post:
+                    operationId: productLookup
                     summary: Look up product details
                     requestBody:
                       content:
@@ -52,17 +83,26 @@ Resources:
       GatewayIdentifier: !Ref ToolGateway
       Name: compatibility-check
       Description: 'Check compatibility between two TechMart products for smart home integration.'
+      CredentialProviderConfigurations:
+        - CredentialProviderType: GATEWAY_IAM_ROLE
+          CredentialProvider:
+            IamCredentialProvider:
+              Service: lambda
+              Region: !Ref AWS::Region
       TargetConfiguration:
-        McpTarget:
+        Mcp:
           OpenApiSchema:
-            Payload: |
+            InlinePayload: |
               openapi: "3.0.0"
               info:
                 title: Compatibility Check
                 version: "1.0"
+              servers:
+                - url: https://api.techmart.example.com
               paths:
                 /check:
                   post:
+                    operationId: compatibilityCheck
                     summary: Check product compatibility
                     requestBody:
                       content:
@@ -84,17 +124,26 @@ Resources:
       GatewayIdentifier: !Ref ToolGateway
       Name: order-status
       Description: 'Check order status, delivery tracking, and return eligibility.'
+      CredentialProviderConfigurations:
+        - CredentialProviderType: GATEWAY_IAM_ROLE
+          CredentialProvider:
+            IamCredentialProvider:
+              Service: lambda
+              Region: !Ref AWS::Region
       TargetConfiguration:
-        McpTarget:
+        Mcp:
           OpenApiSchema:
-            Payload: |
+            InlinePayload: |
               openapi: "3.0.0"
               info:
                 title: Order Status
                 version: "1.0"
+              servers:
+                - url: https://api.techmart.example.com
               paths:
                 /status:
                   post:
+                    operationId: orderStatus
                     summary: Check order status
                     requestBody:
                       content:
@@ -115,6 +164,6 @@ Outputs:
       Name: mladas-gateway-id
 
   GatewayArn:
-    Value: !GetAtt ToolGateway.Arn
+    Value: !GetAtt ToolGateway.GatewayArn
     Export:
       Name: mladas-gateway-arn

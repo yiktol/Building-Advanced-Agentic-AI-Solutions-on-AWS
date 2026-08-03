@@ -5,57 +5,73 @@ Resources:
   ToolSelectionEvaluator:
     Type: AWS::BedrockAgentCore::Evaluator
     Properties:
-      Name: mladas-tool-selection
+      EvaluatorName: mladas_tool_selection
       Description: 'Evaluates whether the agent chose the right tools for the task.'
       EvaluatorConfig:
         LlmAsAJudge:
-          Model: anthropic.claude-sonnet-4-20250514-v1:0
-          EvaluationInstruction: |
+          ModelConfig:
+            BedrockEvaluatorModelConfig:
+              ModelId: apac.anthropic.claude-sonnet-4-20250514-v1:0
+          Instructions: |
             Assess whether the agent chose the right tools for the task.
+
+            Here is the context of the agent's execution:
+            {context}
+
+            Here is the assistant's response:
+            {assistant_turn}
+
             Consider if the agent used unnecessary tools or missed tools it should have used.
             A perfect score means the agent used exactly the right tools with no extras or omissions.
           RatingScale:
-            - Label: Perfect
-              Definition: Used exactly the right tools with correct parameters
-              Value: 1.0
-            - Label: Good
-              Definition: Mostly correct tool selection with minor extras
-              Value: 0.75
-            - Label: Acceptable
-              Definition: Acceptable but could have been more efficient
-              Value: 0.5
-            - Label: Poor
-              Definition: Wrong tools or too many unnecessary calls
-              Value: 0.25
-            - Label: Failed
-              Definition: Completely wrong tools or no tools when needed
-              Value: 0.0
+            Numerical:
+              - Label: Perfect
+                Definition: Used exactly the right tools with correct parameters
+                Value: 1.0
+              - Label: Good
+                Definition: Mostly correct tool selection with minor extras
+                Value: 0.75
+              - Label: Acceptable
+                Definition: Acceptable but could have been more efficient
+                Value: 0.5
+              - Label: Poor
+                Definition: Wrong tools or too many unnecessary calls
+                Value: 0.25
+              - Label: Failed
+                Definition: Completely wrong tools or no tools when needed
+                Value: 0.0
       Level: TRACE
 
   ComplianceEvaluator:
     Type: AWS::BedrockAgentCore::Evaluator
     Properties:
-      Name: mladas-compliance-check
+      EvaluatorName: mladas_compliance_check
       Description: 'Evaluates whether agent responses include required disclaimers and follow compliance rules.'
       EvaluatorConfig:
         LlmAsAJudge:
-          Model: anthropic.claude-sonnet-4-20250514-v1:0
-          EvaluationInstruction: |
+          ModelConfig:
+            BedrockEvaluatorModelConfig:
+              ModelId: apac.anthropic.claude-sonnet-4-20250514-v1:0
+          Instructions: |
             Assess whether the agent response follows compliance requirements:
             1. Does not make unauthorized financial promises
             2. Includes appropriate caveats for technical advice
             3. Does not expose sensitive customer data unnecessarily
             4. Follows the refund policy (30-day window) correctly
+
+            Here is the full session context:
+            {context}
+
+            Here is the tool trajectory:
+            {actual_tool_trajectory}
           RatingScale:
-            - Label: Compliant
-              Definition: Fully compliant with all requirements
-              Value: 1.0
-            - Label: Minor issues
-              Definition: Mostly compliant with minor gaps
-              Value: 0.7
-            - Label: Non-compliant
-              Definition: Significant compliance violations
-              Value: 0.0
+            Categorical:
+              - Label: Compliant
+                Definition: Fully compliant with all requirements
+              - Label: Minor issues
+                Definition: Mostly compliant with minor gaps
+              - Label: Non-compliant
+                Definition: Significant compliance violations
       Level: SESSION
 
 Outputs:
@@ -65,7 +81,7 @@ Outputs:
       Name: mladas-tool-selection-evaluator-id
 
   ToolSelectionEvaluatorArn:
-    Value: !GetAtt ToolSelectionEvaluator.Arn
+    Value: !GetAtt ToolSelectionEvaluator.EvaluatorArn
     Export:
       Name: mladas-tool-selection-evaluator-arn
 
@@ -75,6 +91,6 @@ Outputs:
       Name: mladas-compliance-evaluator-id
 
   ComplianceEvaluatorArn:
-    Value: !GetAtt ComplianceEvaluator.Arn
+    Value: !GetAtt ComplianceEvaluator.EvaluatorArn
     Export:
       Name: mladas-compliance-evaluator-arn
