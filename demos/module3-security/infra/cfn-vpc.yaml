@@ -1,0 +1,217 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 3 Demo - VPC with private subnets and Bedrock VPC endpoint'
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Default: '10.0.0.0/16'
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: '10.0.1.0/24'
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: '10.0.2.0/24'
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: m3-demo-vpc
+        - Key: Project
+          Value: mladas-module3-demo
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: m3-demo-private-subnet-1
+        - Key: Project
+          Value: mladas-module3-demo
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: m3-demo-private-subnet-2
+        - Key: Project
+          Value: mladas-module3-demo
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: m3-demo-private-rt
+        - Key: Project
+          Value: mladas-module3-demo
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Security group for VPC endpoints
+  VpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for VPC endpoints - allows HTTPS from VPC'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+          Description: 'HTTPS from VPC CIDR'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+          Description: 'Allow all outbound'
+      Tags:
+        - Key: Name
+          Value: m3-demo-vpce-sg
+        - Key: Project
+          Value: mladas-module3-demo
+
+  # Security group for agent workloads
+  AgentSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'Security group for agent workloads - restricted outbound'
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+          Description: 'HTTPS to VPC endpoints only'
+      Tags:
+        - Key: Name
+          Value: m3-demo-agent-sg
+        - Key: Project
+          Value: mladas-module3-demo
+
+  # VPC Endpoint: Amazon Bedrock Runtime (for model inference)
+  BedrockRuntimeEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.bedrock-runtime'
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: m3-demo-bedrock-runtime-vpce
+        - Key: Project
+          Value: mladas-module3-demo
+
+  # VPC Endpoint: DynamoDB (Gateway endpoint - free)
+  DynamoDBEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.dynamodb'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      Tags:
+        - Key: Name
+          Value: m3-demo-dynamodb-vpce
+        - Key: Project
+          Value: mladas-module3-demo
+
+  # VPC Endpoint: CloudWatch Logs
+  CloudWatchLogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.logs'
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: m3-demo-cwlogs-vpce
+        - Key: Project
+          Value: mladas-module3-demo
+
+  # VPC Endpoint: STS (for credential operations)
+  STSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.sts'
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      Tags:
+        - Key: Name
+          Value: m3-demo-sts-vpce
+        - Key: Project
+          Value: mladas-module3-demo
+
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: m3-demo-vpc-id
+
+  PrivateSubnet1Id:
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: m3-demo-private-subnet-1
+
+  PrivateSubnet2Id:
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: m3-demo-private-subnet-2
+
+  AgentSecurityGroupId:
+    Value: !Ref AgentSecurityGroup
+    Export:
+      Name: m3-demo-agent-sg-id
+
+  VpcEndpointSecurityGroupId:
+    Value: !Ref VpcEndpointSecurityGroup
+    Export:
+      Name: m3-demo-vpce-sg-id
+
+  BedrockRuntimeEndpointId:
+    Value: !Ref BedrockRuntimeEndpoint
+    Export:
+      Name: m3-demo-bedrock-vpce-id

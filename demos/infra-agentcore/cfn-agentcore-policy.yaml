@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Policy Engine with Cedar policies (Module 3)'
+
+Parameters:
+  GatewayArn:
+    Type: String
+    Default: ''
+    Description: 'ARN of the AgentCore Gateway to attach policies to'
+
+Resources:
+  PolicyEngine:
+    Type: AWS::BedrockAgentCore::PolicyEngine
+    Properties:
+      Name: mladas-policy-engine
+      Description: 'Cedar-based policy engine for TechMart agent authorization'
+
+  RefundFinancePolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineIdentifier: !Ref PolicyEngine
+      Name: allow-finance-admin-refund
+      Description: 'Allow finance admins to process refunds (no amount limit)'
+      PolicyType: CEDAR
+      Policy:
+        Cedar: |
+          permit (
+            principal,
+            action == AgentCore::Action::"process_refund",
+            resource
+          )
+          when {
+            principal.department == "finance" &&
+            principal.role == "admin"
+          };
+
+  RefundSupportPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineIdentifier: !Ref PolicyEngine
+      Name: allow-support-agent-small-refund
+      Description: 'Allow support agents to process refunds under $500'
+      PolicyType: CEDAR
+      Policy:
+        Cedar: |
+          permit (
+            principal,
+            action == AgentCore::Action::"process_refund",
+            resource
+          )
+          when {
+            principal.department == "support" &&
+            principal.role == "agent" &&
+            context.input.amount < 500
+          };
+
+  ForbidEngineerRefundPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineIdentifier: !Ref PolicyEngine
+      Name: forbid-engineer-refund
+      Description: 'Engineers cannot process refunds'
+      PolicyType: CEDAR
+      Policy:
+        Cedar: |
+          forbid (
+            principal,
+            action == AgentCore::Action::"process_refund",
+            resource
+          )
+          when {
+            principal.department == "engineering"
+          };
+
+  ViewOrderPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineIdentifier: !Ref PolicyEngine
+      Name: allow-all-view-order
+      Description: 'All authenticated users can view orders'
+      PolicyType: CEDAR
+      Policy:
+        Cedar: |
+          permit (
+            principal,
+            action == AgentCore::Action::"view_order",
+            resource
+          );
+
+Outputs:
+  PolicyEngineId:
+    Value: !Ref PolicyEngine
+    Export:
+      Name: mladas-policy-engine-id
+
+  PolicyEngineArn:
+    Value: !GetAtt PolicyEngine.Arn
+    Export:
+      Name: mladas-policy-engine-arn

@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 3 Demo - Cognito User Pool with superhero test users'
+
+Parameters:
+  DefaultPassword:
+    Type: String
+    Default: 'Hero$ecure1!'
+    Description: Default password for test users
+    NoEcho: true
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: m3-demo-user-pool
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+        - Name: department
+          AttributeDataType: String
+          Mutable: true
+        - Name: hero_name
+          AttributeDataType: String
+          Mutable: true
+        - Name: max_refund
+          AttributeDataType: Number
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      UserPoolTags:
+        Project: mladas-module3-demo
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: m3-demo-app-client
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+
+  # Users are created via the deploy script (admin-create-user)
+  # CloudFormation UserPoolUser doesn't support custom attributes well
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Export:
+      Name: m3-demo-user-pool-id
+
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: m3-demo-user-pool-arn
+
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+    Export:
+      Name: m3-demo-user-pool-client-id
+
+  TestUsers:
+    Value: !Sub |
+      Superman (Clark Kent): clark.kent@dailyplanet.com - admin/finance - max refund $10,000
+      Batman (Bruce Wayne): bruce.wayne@waynetech.com - security_lead/security - max refund $5,000
+      Spider-Man (Peter Parker): peter.parker@bugle.com - agent/support - max refund $500
+      Wonder Woman (Diana Prince): diana.prince@themyscira.gov - manager/operations - max refund $2,000
+      Iron Man (Tony Stark): tony.stark@starkindustries.com - engineer/engineering - no refund access

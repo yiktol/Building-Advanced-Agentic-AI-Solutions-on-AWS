@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 3 Demo - CloudWatch Log Group and IAM for audit logging'
+
+Resources:
+  AuditLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m3-demo/agent-audit
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module3-demo
+
+  SecurityEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m3-demo/security-events
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module3-demo
+
+  # IAM Role for the demo agent to write logs and access resources
+  AgentExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: m3-demo-agent-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AgentDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/m3-demo-*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/m3-demo-*/index/*'
+        - PolicyName: AgentBedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: '*'
+        - PolicyName: AgentVerifiedPermissionsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - verifiedpermissions:IsAuthorized
+                  - verifiedpermissions:IsAuthorizedWithToken
+                Resource: '*'
+        - PolicyName: AgentCognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:InitiateAuth
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminSetUserPassword
+                Resource: '*'
+        - PolicyName: AgentCloudWatchLogsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                  - logs:StartQuery
+                  - logs:GetQueryResults
+                Resource:
+                  - !GetAtt AuditLogGroup.Arn
+                  - !Sub '${AuditLogGroup.Arn}:*'
+                  - !GetAtt SecurityEventsLogGroup.Arn
+                  - !Sub '${SecurityEventsLogGroup.Arn}:*'
+      Tags:
+        - Key: Project
+          Value: mladas-module3-demo
+
+Outputs:
+  AuditLogGroupName:
+    Value: !Ref AuditLogGroup
+    Export:
+      Name: m3-demo-audit-log-group
+
+  SecurityEventsLogGroupName:
+    Value: !Ref SecurityEventsLogGroup
+    Export:
+      Name: m3-demo-security-events-log-group
+
+  AgentExecutionRoleArn:
+    Value: !GetAtt AgentExecutionRole.Arn
+    Export:
+      Name: m3-demo-agent-execution-role-arn

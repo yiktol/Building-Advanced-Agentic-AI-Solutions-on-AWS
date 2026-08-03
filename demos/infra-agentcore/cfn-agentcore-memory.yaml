@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Memory — creates via Lambda-backed custom resource'
+
+Resources:
+  MemoryCreatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mladas-memory-creator-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AgentCoreMemoryAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:CreateMemory
+                  - bedrock-agentcore:DeleteMemory
+                  - bedrock-agentcore:GetMemory
+                  - bedrock-agentcore:ListMemories
+                Resource: '*'
+
+  MemoryCreatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: mladas-memory-creator
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt MemoryCreatorRole.Arn
+      Timeout: 120
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          def handler(event, context):
+              client = boto3.client('bedrock-agentcore-control')
+              name = event['ResourceProperties']['MemoryName']
+              expiry = int(event['ResourceProperties'].get('EventExpiryDuration', '30'))
+              try:
+                  if event['RequestType'] == 'Create':
+                      resp = client.create_memory(name=name, eventExpiryDuration=expiry)
+                      memories = client.list_memories()['memories']
+                      mem = next((m for m in memories if name in m['id']), None)
+                      memory_id = mem['id'] if mem else 'unknown'
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'MemoryId': memory_id, 'Arn': mem.get('arn', '')}, memory_id)
+                  elif event['RequestType'] == 'Delete':
+                      memory_id = event['PhysicalResourceId']
+                      try:
+                          client.delete_memory(memoryId=memory_id)
+                      except Exception:
+                          pass
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                  else:
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {'MemoryId': event['PhysicalResourceId']}, event['PhysicalResourceId'])
+              except Exception as e:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
+
+  SharedAgentMemory:
+    Type: Custom::AgentCoreMemory
+    Properties:
+      ServiceToken: !GetAtt MemoryCreatorFunction.Arn
+      MemoryName: mladas_shared_memory
+      EventExpiryDuration: 30
+
+Outputs:
+  SharedMemoryId:
+    Value: !GetAtt SharedAgentMemory.MemoryId
+    Export:
+      Name: mladas-shared-memory-id

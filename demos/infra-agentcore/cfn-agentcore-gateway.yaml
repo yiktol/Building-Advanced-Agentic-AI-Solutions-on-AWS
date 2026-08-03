@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Gateway with MCP tool targets (Module 1 Part 3, Module 2 Part 5)'
+
+Parameters:
+  ProductLookupLambdaArn:
+    Type: String
+    Default: ''
+    Description: 'ARN of Lambda function for product lookup (optional — can use inline target)'
+
+Resources:
+  ToolGateway:
+    Type: AWS::BedrockAgentCore::Gateway
+    Properties:
+      Name: mladas-tool-gateway
+      Description: 'Centralized MCP-compatible tool gateway for TechMart demos'
+      ProtocolType: MCP
+
+  ProductLookupTarget:
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    Properties:
+      GatewayIdentifier: !Ref ToolGateway
+      Name: product-lookup
+      Description: 'Look up TechMart product details including specs, price, and availability.'
+      TargetConfiguration:
+        McpTarget:
+          OpenApiSchema:
+            Payload: |
+              openapi: "3.0.0"
+              info:
+                title: Product Lookup
+                version: "1.0"
+              paths:
+                /lookup:
+                  post:
+                    summary: Look up product details
+                    requestBody:
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              product_name:
+                                type: string
+                                description: Product name to search
+                    responses:
+                      "200":
+                        description: Product details
+
+  CompatibilityCheckTarget:
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    Properties:
+      GatewayIdentifier: !Ref ToolGateway
+      Name: compatibility-check
+      Description: 'Check compatibility between two TechMart products for smart home integration.'
+      TargetConfiguration:
+        McpTarget:
+          OpenApiSchema:
+            Payload: |
+              openapi: "3.0.0"
+              info:
+                title: Compatibility Check
+                version: "1.0"
+              paths:
+                /check:
+                  post:
+                    summary: Check product compatibility
+                    requestBody:
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              product_a:
+                                type: string
+                              product_b:
+                                type: string
+                    responses:
+                      "200":
+                        description: Compatibility result
+
+  OrderStatusTarget:
+    Type: AWS::BedrockAgentCore::GatewayTarget
+    Properties:
+      GatewayIdentifier: !Ref ToolGateway
+      Name: order-status
+      Description: 'Check order status, delivery tracking, and return eligibility.'
+      TargetConfiguration:
+        McpTarget:
+          OpenApiSchema:
+            Payload: |
+              openapi: "3.0.0"
+              info:
+                title: Order Status
+                version: "1.0"
+              paths:
+                /status:
+                  post:
+                    summary: Check order status
+                    requestBody:
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              order_id:
+                                type: string
+                    responses:
+                      "200":
+                        description: Order details
+
+Outputs:
+  GatewayId:
+    Value: !Ref ToolGateway
+    Export:
+      Name: mladas-gateway-id
+
+  GatewayArn:
+    Value: !GetAtt ToolGateway.Arn
+    Export:
+      Name: mladas-gateway-arn

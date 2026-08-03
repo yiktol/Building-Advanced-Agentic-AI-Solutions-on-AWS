@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 5 Demo - E-commerce multi-agent system DynamoDB tables'
+
+Resources:
+  ProductCatalog:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m5-demo-products
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: product_id
+          AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+      KeySchema:
+        - AttributeName: product_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: category-index
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m5-demo-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: customer_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: order_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: customer-index
+          KeySchema:
+            - AttributeName: customer_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  CustomersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m5-demo-customers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: customer_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: customer_id
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  WAReviewTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m5-demo-wa-reviews
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: review_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: review_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+Outputs:
+  ProductCatalogTable:
+    Value: !Ref ProductCatalog
+    Export:
+      Name: m5-demo-products-table
+
+  OrdersTableName:
+    Value: !Ref OrdersTable
+    Export:
+      Name: m5-demo-orders-table
+
+  CustomersTableName:
+    Value: !Ref CustomersTable
+    Export:
+      Name: m5-demo-customers-table
+
+  WAReviewTableName:
+    Value: !Ref WAReviewTable
+    Export:
+      Name: m5-demo-wa-review-table

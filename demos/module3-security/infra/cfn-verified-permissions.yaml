@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 3 Demo - Amazon Verified Permissions policy store with Cedar policies'
+
+Resources:
+  PolicyStore:
+    Type: AWS::VerifiedPermissions::PolicyStore
+    Properties:
+      ValidationSettings:
+        Mode: 'OFF'
+      Description: 'Module 3 Demo - Agent action authorization'
+      Schema:
+        CedarJson: |
+          {
+            "TechMart": {
+              "entityTypes": {
+                "User": {
+                  "shape": {
+                    "type": "Record",
+                    "attributes": {
+                      "role": { "type": "String", "required": true },
+                      "department": { "type": "String", "required": true },
+                      "max_refund": { "type": "Long", "required": true }
+                    }
+                  }
+                },
+                "Order": {
+                  "shape": {
+                    "type": "Record",
+                    "attributes": {
+                      "customer_id": { "type": "String", "required": true },
+                      "amount": { "type": "Long", "required": true },
+                      "status": { "type": "String", "required": true }
+                    }
+                  }
+                },
+                "Customer": {
+                  "shape": {
+                    "type": "Record",
+                    "attributes": {
+                      "customer_id": { "type": "String", "required": true }
+                    }
+                  }
+                }
+              },
+              "actions": {
+                "ViewOrder": {
+                  "appliesTo": {
+                    "principalTypes": ["User"],
+                    "resourceTypes": ["Order"]
+                  }
+                },
+                "ProcessRefund": {
+                  "appliesTo": {
+                    "principalTypes": ["User"],
+                    "resourceTypes": ["Order"]
+                  }
+                },
+                "ViewCustomer": {
+                  "appliesTo": {
+                    "principalTypes": ["User"],
+                    "resourceTypes": ["Customer"]
+                  }
+                },
+                "ModifyCustomer": {
+                  "appliesTo": {
+                    "principalTypes": ["User"],
+                    "resourceTypes": ["Customer"]
+                  }
+                },
+                "AccessAuditLog": {
+                  "appliesTo": {
+                    "principalTypes": ["User"],
+                    "resourceTypes": ["Order"]
+                  }
+                }
+              }
+            }
+          }
+
+  # Policy 1: Allow finance admin to process refunds
+  PolicyRefundFinance:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Allow finance admins to process refunds'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ProcessRefund",
+              resource
+            )
+            when {
+              principal.department == "finance" &&
+              principal.role == "admin"
+            };
+
+  # Policy 2: Allow support agents to process small refunds
+  PolicyRefundSupport:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Allow support agents to process refunds under $500'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ProcessRefund",
+              resource
+            )
+            when {
+              principal.department == "support" &&
+              principal.role == "agent" &&
+              resource.amount < 500
+            };
+
+  # Policy 3: Allow managers to process refunds up to $2000
+  PolicyRefundManager:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Allow managers to process refunds up to $2000'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ProcessRefund",
+              resource
+            )
+            when {
+              principal.role == "manager" &&
+              resource.amount < 2000
+            };
+
+  # Policy 4: Allow security leads to process refunds up to $5000
+  PolicyRefundSecurity:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Allow security leads to process refunds up to $5000'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ProcessRefund",
+              resource
+            )
+            when {
+              principal.role == "security_lead" &&
+              resource.amount < 5000
+            };
+
+  # Policy 5: Everyone can view orders
+  PolicyViewOrder:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'All authenticated users can view orders'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ViewOrder",
+              resource
+            );
+
+  # Policy 6: Everyone can view customers
+  PolicyViewCustomer:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'All authenticated users can view customer data'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ViewCustomer",
+              resource
+            );
+
+  # Policy 7: Only admin/manager can modify customers
+  PolicyModifyCustomer:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Only admins and managers can modify customer records'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"ModifyCustomer",
+              resource
+            )
+            when {
+              principal.role == "admin" ||
+              principal.role == "manager"
+            };
+
+  # Policy 8: Forbid engineers from refunds
+  PolicyForbidEngineerRefund:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Explicitly forbid engineers from processing refunds'
+          Statement: |
+            forbid (
+              principal,
+              action == TechMart::Action::"ProcessRefund",
+              resource
+            )
+            when {
+              principal.department == "engineering"
+            };
+
+  # Policy 9: Only security/admin can access audit
+  PolicyAuditAccess:
+    Type: AWS::VerifiedPermissions::Policy
+    Properties:
+      PolicyStoreId: !Ref PolicyStore
+      Definition:
+        Static:
+          Description: 'Only security leads and admins can access audit logs'
+          Statement: |
+            permit (
+              principal,
+              action == TechMart::Action::"AccessAuditLog",
+              resource
+            )
+            when {
+              principal.role == "admin" ||
+              principal.role == "security_lead"
+            };
+
+Outputs:
+  PolicyStoreId:
+    Value: !Ref PolicyStore
+    Export:
+      Name: m3-demo-policy-store-id
+
+  PolicyStoreArn:
+    Value: !GetAtt PolicyStore.Arn
+    Export:
+      Name: m3-demo-policy-store-arn

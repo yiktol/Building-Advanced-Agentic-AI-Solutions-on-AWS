@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Bedrock Guardrail for agent safety (Module 3 Security Enhancement)'
+
+Resources:
+  AgentGuardrail:
+    Type: AWS::Bedrock::Guardrail
+    Properties:
+      Name: mladas-agent-guardrail
+      Description: 'Protects agent inputs/outputs for the TechMart customer service demo'
+      BlockedInputMessaging: 'I cannot process this request as it violates our content policy.'
+      BlockedOutputsMessaging: 'The response was blocked as it may contain inappropriate content.'
+      ContentPolicyConfig:
+        FiltersConfig:
+          - InputStrength: HIGH
+            OutputStrength: HIGH
+            Type: HATE
+          - InputStrength: HIGH
+            OutputStrength: HIGH
+            Type: INSULTS
+          - InputStrength: HIGH
+            OutputStrength: HIGH
+            Type: SEXUAL
+          - InputStrength: HIGH
+            OutputStrength: HIGH
+            Type: VIOLENCE
+          - InputStrength: MEDIUM
+            OutputStrength: MEDIUM
+            Type: MISCONDUCT
+      SensitiveInformationPolicyConfig:
+        PiiEntitiesConfig:
+          - Action: ANONYMIZE
+            Type: CREDIT_DEBIT_CARD_NUMBER
+          - Action: ANONYMIZE
+            Type: US_SOCIAL_SECURITY_NUMBER
+          - Action: ANONYMIZE
+            Type: US_BANK_ACCOUNT_NUMBER
+          - Action: BLOCK
+            Type: PASSWORD
+      TopicPolicyConfig:
+        TopicsConfig:
+          - Definition: 'Requests to access internal company systems, admin panels, or infrastructure not related to customer service.'
+            Name: unauthorized-system-access
+            Type: DENY
+          - Definition: 'Requests to generate malicious code, exploit vulnerabilities, or perform unauthorized actions on systems.'
+            Name: malicious-intent
+            Type: DENY
+
+  GuardrailVersion:
+    Type: AWS::Bedrock::GuardrailVersion
+    Properties:
+      GuardrailIdentifier: !Ref AgentGuardrail
+      Description: 'v1 - Initial deployment'
+
+Outputs:
+  GuardrailId:
+    Value: !GetAtt AgentGuardrail.GuardrailId
+    Export:
+      Name: mladas-guardrail-id
+
+  GuardrailArn:
+    Value: !GetAtt AgentGuardrail.GuardrailArn
+    Export:
+      Name: mladas-guardrail-arn
+
+  GuardrailVersion:
+    Value: !GetAtt GuardrailVersion.Version
+    Export:
+      Name: mladas-guardrail-version

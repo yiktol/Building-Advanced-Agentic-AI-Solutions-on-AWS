@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 3 Demo - DynamoDB tables for customer and order data'
+
+Resources:
+  CustomersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m3-demo-customers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: customer_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: customer_id
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: mladas-module3-demo
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m3-demo-orders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: customer_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: order_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: customer-index
+          KeySchema:
+            - AttributeName: customer_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: mladas-module3-demo
+
+  AuditTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m3-demo-audit-log
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: audit_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: audit_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: mladas-module3-demo
+
+Outputs:
+  CustomersTableName:
+    Value: !Ref CustomersTable
+    Export:
+      Name: m3-demo-customers-table
+
+  OrdersTableName:
+    Value: !Ref OrdersTable
+    Export:
+      Name: m3-demo-orders-table
+
+  AuditTableName:
+    Value: !Ref AuditTable
+    Export:
+      Name: m3-demo-audit-table
+
+  CustomersTableArn:
+    Value: !GetAtt CustomersTable.Arn
+    Export:
+      Name: m3-demo-customers-table-arn
+
+  OrdersTableArn:
+    Value: !GetAtt OrdersTable.Arn
+    Export:
+      Name: m3-demo-orders-table-arn
+
+  AuditTableArn:
+    Value: !GetAtt AuditTable.Arn
+    Export:
+      Name: m3-demo-audit-table-arn

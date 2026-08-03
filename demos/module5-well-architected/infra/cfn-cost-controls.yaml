@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 5 Demo - Cost optimization alarms and metrics'
+
+Resources:
+  CostMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m5-demo/cost-metrics
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  DeploymentLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m5-demo/deployments
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  # Alarm: Session cost exceeds $0.50
+  SessionCostAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m5-demo-session-cost-exceeded
+      AlarmDescription: 'Single session cost exceeded $0.50'
+      Namespace: m5-demo/CostMetrics
+      MetricName: SessionCost
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 0.5
+      ComparisonOperator: GreaterThanThreshold
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  # Alarm: Daily token budget exceeded
+  DailyTokenBudgetAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m5-demo-daily-token-budget
+      AlarmDescription: 'Daily token usage exceeded 500k tokens'
+      Namespace: m5-demo/CostMetrics
+      MetricName: DailyTokensUsed
+      Statistic: Sum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 500000
+      ComparisonOperator: GreaterThanThreshold
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+  # Alarm: Agent health check failure
+  HealthCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m5-demo-health-check-failed
+      AlarmDescription: 'Agent health check failed'
+      Namespace: m5-demo/Operational
+      MetricName: HealthCheckFailure
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Tags:
+        - Key: Project
+          Value: mladas-module5-demo
+
+Outputs:
+  CostMetricsLogGroupName:
+    Value: !Ref CostMetricsLogGroup
+    Export:
+      Name: m5-demo-cost-log-group
+
+  DeploymentLogGroupName:
+    Value: !Ref DeploymentLogGroup
+    Export:
+      Name: m5-demo-deployment-log-group

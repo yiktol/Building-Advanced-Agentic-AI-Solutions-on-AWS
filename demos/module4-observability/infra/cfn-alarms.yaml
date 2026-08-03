@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 4 Demo - CloudWatch Alarms, SNS alerts, loop detection'
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Default: 'demo-alerts@example.com'
+    Description: Email for alarm notifications (confirm subscription after deploy)
+
+Resources:
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: m4-demo-agent-alerts
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # Alarm: Agent response latency exceeds 30 seconds
+  HighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m4-demo-high-latency
+      AlarmDescription: 'Agent response latency exceeds 30 seconds'
+      Namespace: m4-demo/AgentMetrics
+      MetricName: ResponseLatency
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 30000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  # Alarm: Error rate exceeds 20%
+  HighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m4-demo-high-error-rate
+      AlarmDescription: 'Agent error rate exceeds 20%'
+      Namespace: m4-demo/AgentMetrics
+      MetricName: ErrorCount
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  # Alarm: Loop detection - too many tool calls in short period
+  LoopDetectionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m4-demo-loop-detected
+      AlarmDescription: 'Possible agent loop - excessive tool invocations in 5 minutes'
+      Namespace: m4-demo/AgentMetrics
+      MetricName: ToolInvocationCount
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  # Alarm: Session duration exceeds 10 minutes
+  LongSessionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m4-demo-long-session
+      AlarmDescription: 'Agent session exceeds 10 minutes - possible loop'
+      Namespace: m4-demo/AgentMetrics
+      MetricName: SessionDuration
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 600000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  # Alarm: Token usage spike
+  TokenUsageSpikeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m4-demo-token-spike
+      AlarmDescription: 'Token usage exceeds 50000 in 5 minutes'
+      Namespace: m4-demo/AgentMetrics
+      MetricName: TokensUsed
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 50000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  # Alarm: Evaluation score drops below threshold
+  QualityRegressionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: m4-demo-quality-regression
+      AlarmDescription: 'Agent evaluation score dropped below 0.7'
+      Namespace: m4-demo/AgentMetrics
+      MetricName: EvaluationScore
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 0.7
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+Outputs:
+  AlertTopicArn:
+    Value: !Ref AlertTopic
+    Export:
+      Name: m4-demo-alert-topic-arn
+
+  AlarmNames:
+    Value: !Sub |
+      m4-demo-high-latency: Response > 30s
+      m4-demo-high-error-rate: Errors > 5 in 5min
+      m4-demo-loop-detected: Tool calls > 50 in 5min
+      m4-demo-long-session: Session > 10min
+      m4-demo-token-spike: Tokens > 50k in 5min
+      m4-demo-quality-regression: Eval score < 0.7

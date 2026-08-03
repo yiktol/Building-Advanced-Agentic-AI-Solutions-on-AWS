@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 4 Demo - CloudWatch Dashboard for agent observability'
+
+Parameters:
+  Region:
+    Type: String
+    Default: ap-southeast-1
+
+Resources:
+  AgentDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: m4-demo-agent-observability
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0, "y": 0, "width": 24, "height": 2,
+              "properties": {
+                "markdown": "# 🤖 Agent Observability Dashboard\n**Module 4 Demo** — Production Monitoring, Observability, and Evaluation"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 2, "width": 8, "height": 6,
+              "properties": {
+                "title": "Response Latency (ms)",
+                "metrics": [
+                  ["m4-demo/AgentMetrics", "ResponseLatency", {"stat": "Average", "label": "Average"}],
+                  ["m4-demo/AgentMetrics", "ResponseLatency", {"stat": "p95", "label": "p95"}],
+                  ["m4-demo/AgentMetrics", "ResponseLatency", {"stat": "Maximum", "label": "Max"}]
+                ],
+                "period": 60,
+                "region": "${Region}",
+                "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8, "y": 2, "width": 8, "height": 6,
+              "properties": {
+                "title": "Token Usage",
+                "metrics": [
+                  ["m4-demo/AgentMetrics", "InputTokens", {"stat": "Sum", "label": "Input"}],
+                  ["m4-demo/AgentMetrics", "OutputTokens", {"stat": "Sum", "label": "Output"}],
+                  ["m4-demo/AgentMetrics", "TokensUsed", {"stat": "Sum", "label": "Total"}]
+                ],
+                "period": 60,
+                "region": "${Region}",
+                "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16, "y": 2, "width": 8, "height": 6,
+              "properties": {
+                "title": "Tool Invocations",
+                "metrics": [
+                  ["m4-demo/AgentMetrics", "ToolInvocationCount", {"stat": "Sum", "label": "Total Calls"}],
+                  ["m4-demo/AgentMetrics", "ToolErrorCount", {"stat": "Sum", "label": "Errors"}]
+                ],
+                "period": 60,
+                "region": "${Region}",
+                "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 8, "width": 8, "height": 6,
+              "properties": {
+                "title": "Evaluation Scores",
+                "metrics": [
+                  ["m4-demo/AgentMetrics", "EvaluationScore", "Evaluator", "Correctness", {"stat": "Average"}],
+                  ["m4-demo/AgentMetrics", "EvaluationScore", "Evaluator", "Helpfulness", {"stat": "Average"}],
+                  ["m4-demo/AgentMetrics", "EvaluationScore", "Evaluator", "ToolSelection", {"stat": "Average"}]
+                ],
+                "period": 300,
+                "region": "${Region}",
+                "view": "timeSeries",
+                "annotations": {
+                  "horizontal": [{"value": 0.7, "label": "Quality Threshold"}]
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8, "y": 8, "width": 8, "height": 6,
+              "properties": {
+                "title": "Session Metrics",
+                "metrics": [
+                  ["m4-demo/AgentMetrics", "SessionDuration", {"stat": "Average", "label": "Avg Duration (ms)"}],
+                  ["m4-demo/AgentMetrics", "SessionCount", {"stat": "Sum", "label": "Sessions"}]
+                ],
+                "period": 300,
+                "region": "${Region}",
+                "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16, "y": 8, "width": 8, "height": 6,
+              "properties": {
+                "title": "Error & Loop Detection",
+                "metrics": [
+                  ["m4-demo/AgentMetrics", "ErrorCount", {"stat": "Sum", "label": "Errors"}],
+                  ["m4-demo/AgentMetrics", "LoopDetected", {"stat": "Sum", "label": "Loops Detected"}],
+                  ["m4-demo/AgentMetrics", "CircuitBreakerTripped", {"stat": "Sum", "label": "Circuit Breakers"}]
+                ],
+                "period": 60,
+                "region": "${Region}",
+                "view": "timeSeries"
+              }
+            },
+            {
+              "type": "alarm",
+              "x": 0, "y": 14, "width": 24, "height": 3,
+              "properties": {
+                "title": "Active Alarms",
+                "alarms": [
+                  "arn:aws:cloudwatch:${Region}:${AWS::AccountId}:alarm:m4-demo-high-latency",
+                  "arn:aws:cloudwatch:${Region}:${AWS::AccountId}:alarm:m4-demo-high-error-rate",
+                  "arn:aws:cloudwatch:${Region}:${AWS::AccountId}:alarm:m4-demo-loop-detected",
+                  "arn:aws:cloudwatch:${Region}:${AWS::AccountId}:alarm:m4-demo-long-session",
+                  "arn:aws:cloudwatch:${Region}:${AWS::AccountId}:alarm:m4-demo-token-spike",
+                  "arn:aws:cloudwatch:${Region}:${AWS::AccountId}:alarm:m4-demo-quality-regression"
+                ]
+              }
+            }
+          ]
+        }
+
+Outputs:
+  DashboardName:
+    Value: m4-demo-agent-observability
+    Export:
+      Name: m4-demo-dashboard-name
+
+  DashboardUrl:
+    Value: !Sub 'https://${Region}.console.aws.amazon.com/cloudwatch/home?region=${Region}#dashboards:name=m4-demo-agent-observability'
+    Export:
+      Name: m4-demo-dashboard-url

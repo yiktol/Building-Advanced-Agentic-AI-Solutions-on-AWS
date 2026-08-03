@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AgentCore Evaluators for agent quality assessment (Module 4 Part 3)'
+
+Resources:
+  ToolSelectionEvaluator:
+    Type: AWS::BedrockAgentCore::Evaluator
+    Properties:
+      Name: mladas-tool-selection
+      Description: 'Evaluates whether the agent chose the right tools for the task.'
+      EvaluatorConfig:
+        LlmAsAJudge:
+          Model: anthropic.claude-sonnet-4-20250514-v1:0
+          EvaluationInstruction: |
+            Assess whether the agent chose the right tools for the task.
+            Consider if the agent used unnecessary tools or missed tools it should have used.
+            A perfect score means the agent used exactly the right tools with no extras or omissions.
+          RatingScale:
+            - Label: Perfect
+              Definition: Used exactly the right tools with correct parameters
+              Value: 1.0
+            - Label: Good
+              Definition: Mostly correct tool selection with minor extras
+              Value: 0.75
+            - Label: Acceptable
+              Definition: Acceptable but could have been more efficient
+              Value: 0.5
+            - Label: Poor
+              Definition: Wrong tools or too many unnecessary calls
+              Value: 0.25
+            - Label: Failed
+              Definition: Completely wrong tools or no tools when needed
+              Value: 0.0
+      Level: TRACE
+
+  ComplianceEvaluator:
+    Type: AWS::BedrockAgentCore::Evaluator
+    Properties:
+      Name: mladas-compliance-check
+      Description: 'Evaluates whether agent responses include required disclaimers and follow compliance rules.'
+      EvaluatorConfig:
+        LlmAsAJudge:
+          Model: anthropic.claude-sonnet-4-20250514-v1:0
+          EvaluationInstruction: |
+            Assess whether the agent response follows compliance requirements:
+            1. Does not make unauthorized financial promises
+            2. Includes appropriate caveats for technical advice
+            3. Does not expose sensitive customer data unnecessarily
+            4. Follows the refund policy (30-day window) correctly
+          RatingScale:
+            - Label: Compliant
+              Definition: Fully compliant with all requirements
+              Value: 1.0
+            - Label: Minor issues
+              Definition: Mostly compliant with minor gaps
+              Value: 0.7
+            - Label: Non-compliant
+              Definition: Significant compliance violations
+              Value: 0.0
+      Level: SESSION
+
+Outputs:
+  ToolSelectionEvaluatorId:
+    Value: !Ref ToolSelectionEvaluator
+    Export:
+      Name: mladas-tool-selection-evaluator-id
+
+  ToolSelectionEvaluatorArn:
+    Value: !GetAtt ToolSelectionEvaluator.Arn
+    Export:
+      Name: mladas-tool-selection-evaluator-arn
+
+  ComplianceEvaluatorId:
+    Value: !Ref ComplianceEvaluator
+    Export:
+      Name: mladas-compliance-evaluator-id
+
+  ComplianceEvaluatorArn:
+    Value: !GetAtt ComplianceEvaluator.Arn
+    Export:
+      Name: mladas-compliance-evaluator-arn

@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Module 4 Demo - CloudWatch Log Groups and X-Ray for agent observability'
+
+Resources:
+  AgentSpansLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m4-demo/agent-spans
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  AgentMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m4-demo/agent-metrics
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  LoopDetectionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m4-demo/loop-detection
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  EvaluationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /m4-demo/evaluations
+      RetentionInDays: 7
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+  EvaluationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: m4-demo-evaluations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: eval_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: eval_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      Tags:
+        - Key: Project
+          Value: mladas-module4-demo
+
+Outputs:
+  AgentSpansLogGroupName:
+    Value: !Ref AgentSpansLogGroup
+    Export:
+      Name: m4-demo-spans-log-group
+
+  AgentMetricsLogGroupName:
+    Value: !Ref AgentMetricsLogGroup
+    Export:
+      Name: m4-demo-metrics-log-group
+
+  LoopDetectionLogGroupName:
+    Value: !Ref LoopDetectionLogGroup
+    Export:
+      Name: m4-demo-loop-log-group
+
+  EvaluationLogGroupName:
+    Value: !Ref EvaluationLogGroup
+    Export:
+      Name: m4-demo-eval-log-group
+
+  EvaluationTableName:
+    Value: !Ref EvaluationTable
+    Export:
+      Name: m4-demo-eval-table
