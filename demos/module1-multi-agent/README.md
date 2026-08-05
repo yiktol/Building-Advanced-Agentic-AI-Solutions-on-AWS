@@ -172,6 +172,7 @@ Products:
 | 2 | Orchestrator pattern | Centralized routing + specialized agents = deep expertise |
 | 3 | Agent-as-tool | Clear interfaces enable reuse across different systems |
 | 4 | Shared memory | Agents collaborate via memory without coupling |
+| 5 | Graph & Swarm (app only) | Deterministic pipelines (Graph) vs. autonomous collaboration (Swarm) |
 
 ---
 

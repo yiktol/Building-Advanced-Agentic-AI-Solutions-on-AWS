@@ -47,19 +47,23 @@ def get_model():
             kwargs["temperature"] = temp
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        else:
+            kwargs["max_tokens"] = 2048
     except Exception:
-        pass
+        kwargs["max_tokens"] = 2048
 
     if guardrail:
         kwargs.update(guardrail)
     return BedrockModel(model_id=model_id, **kwargs)
 
 
-def create_agent(system_prompt: str, tools: list = None) -> Agent:
+def create_agent(system_prompt: str, tools: list = None, name: str = None) -> Agent:
     """Create a Strands agent with the given prompt and tools."""
     kwargs = {"model": get_model(), "system_prompt": system_prompt}
     if tools:
         kwargs["tools"] = tools
+    if name:
+        kwargs["name"] = name
     return Agent(**kwargs)
 
 
@@ -67,6 +71,35 @@ def chat_response(agent: Agent, message: str) -> str:
     """Get a response from the agent and return as string."""
     response = agent(message)
     return str(response)
+
+
+def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
+    """Get a response from the agent and return (text, metrics_dict).
+
+    metrics_dict contains: inputTokens, outputTokens, totalTokens, latencyMs,
+    cacheReadInputTokens, cacheWriteInputTokens
+    """
+    response = agent(message)
+    text = str(response)
+    metrics = {}
+    try:
+        # Get per-turn metrics from the last invocation (not accumulated across all turns)
+        invocations = response.metrics.agent_invocations
+        if invocations:
+            last_invocation = invocations[-1]
+            usage = last_invocation.usage
+        else:
+            usage = response.metrics.accumulated_usage
+        metrics["inputTokens"] = usage.get("inputTokens", 0)
+        metrics["outputTokens"] = usage.get("outputTokens", 0)
+        metrics["totalTokens"] = usage.get("totalTokens", 0)
+        metrics["cacheReadInputTokens"] = usage.get("cacheReadInputTokens", 0)
+        metrics["cacheWriteInputTokens"] = usage.get("cacheWriteInputTokens", 0)
+        acc_metrics = response.metrics.accumulated_metrics
+        metrics["latencyMs"] = acc_metrics.get("latencyMs", 0)
+    except Exception:
+        pass
+    return text, metrics
 
 
 def chat_stream(agent: Agent, message: str):

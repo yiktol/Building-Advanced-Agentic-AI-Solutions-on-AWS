@@ -27,6 +27,10 @@ with st.sidebar:
     from style import show_status_badge
     show_status_badge("Memory", _s['memory'])
     show_status_badge("Guardrail", _s['guardrail'])
+    show_status_badge("Evaluator", _s['evaluator'])
+    show_status_badge("Gateway", _s['gateway'])
+    show_status_badge("Cognito", _s['cognito'])
+    show_status_badge("Policy", _s['policy_store'])
     if st.button("🔄 Reset Session", key="m1_reset_session", use_container_width=True):
         for key in list(st.session_state.keys()):
             if key.startswith("m1"):
@@ -419,6 +423,9 @@ elif part == "Part 4 — Shared memory":
     if "m1p4_step" not in st.session_state:
         st.session_state.m1p4_step = "input"
         st.session_state.m1p4_results = {}
+
+    # Always re-create memory instance to pick up config changes
+    if "m1p4_memory_store" not in st.session_state or (status["memory"] and not st.session_state.m1p4_memory_store.is_real):
         st.session_state.m1p4_memory_store = AgentCoreMemory()
 
     memory = st.session_state.m1p4_memory_store
@@ -487,49 +494,269 @@ elif part == "Part 5 — Graph & Swarm":
     part_header("Graph & Swarm patterns", "Strands multi-agent orchestration beyond simple routing.")
 
     st.markdown("""
-    **Three orchestration patterns in Strands SDK:**
+    **Two orchestration patterns in Strands SDK:**
 
     | Pattern | How it works | Use case |
     |---------|-------------|----------|
-    | **Workflow** | Pre-defined DAG, sequential | Repeatable pipelines |
-    | **Graph** | Structured flowchart, agents decide paths | Branching logic |
-    | **Swarm** | Autonomous handoffs, emergent behavior | Diverse perspectives |
+    | **Graph** | Structured DAG, agents execute in dependency order | Pipelines with clear stages |
+    | **Swarm** | Autonomous handoffs, agents collaborate freely | Diverse perspectives, emergent behavior |
     """)
 
     pattern = st.segmented_control("Pattern", ["Graph", "Swarm"], key="m1p5_pattern")
 
     if pattern == "Graph":
         st.markdown("""
-        **Graph pattern:** Nodes = agents, Edges = dependencies. Execution follows the graph, respecting dependencies.
-        Output from one node becomes input for dependent nodes.
+        **Graph pattern:** Researcher → Analyst → Writer pipeline. Each node receives the output of its dependencies.
         """)
-        st.code("""
-from strands.multiagent import Graph, Node
 
-graph = Graph()
-graph.add_node(Node("researcher", agent=researcher))
-graph.add_node(Node("analyst", agent=analyst, depends_on=["researcher"]))
-graph.add_node(Node("writer", agent=writer, depends_on=["analyst"]))
+        with st.expander("📝 Code", expanded=False):
+            st.code("""
+from strands.multiagent.graph import GraphBuilder
+from strands import Agent
+
+researcher = Agent(system_prompt="You are a Researcher...")
+analyst = Agent(system_prompt="You are an Analyst...")
+writer = Agent(system_prompt="You are a Writer...")
+
+builder = GraphBuilder()
+builder.add_node(researcher, node_id="researcher")
+builder.add_node(analyst, node_id="analyst")
+builder.add_node(writer, node_id="writer")
+builder.add_edge("researcher", "analyst")
+builder.add_edge("analyst", "writer")
+builder.set_entry_point("researcher")
+graph = builder.build()
 
 result = graph("Analyze solar energy market in Vietnam")
-        """, language="python")
+            """, language="python")
+
+        if "m1p5_graph_msgs" not in st.session_state:
+            st.session_state.m1p5_graph_msgs = []
+            st.session_state.m1p5_graph_results = {}
+
+        for msg in st.session_state.m1p5_graph_msgs:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        # Show node results if available
+        if st.session_state.m1p5_graph_results:
+            with st.expander("🔬 Researcher Output", expanded=False):
+                st.markdown(st.session_state.m1p5_graph_results.get("researcher", ""))
+            with st.expander("📊 Analyst Output", expanded=False):
+                st.markdown(st.session_state.m1p5_graph_results.get("analyst", ""))
+            with st.expander("✍️ Writer Output (Final)", expanded=True):
+                st.markdown(st.session_state.m1p5_graph_results.get("writer", ""))
+
+        if not st.session_state.m1p5_graph_msgs:
+            suggestions = ["Analyze solar energy market in Vietnam for 2025-2027", "Compare serverless vs containers for a startup", "Evaluate AI adoption in healthcare"]
+            selected = st.pills("Try:", suggestions, key="m1p5_graph_pills")
+            if selected:
+                st.session_state.m1p5_graph_msgs.append({"role": "user", "content": selected})
+                with st.chat_message("user"):
+                    st.markdown(selected)
+                with st.chat_message("assistant"):
+                    with st.status("Running Graph pipeline...", expanded=True):
+                        try:
+                            from strands.multiagent.graph import GraphBuilder
+
+                            st.write("🔬 **Researcher** gathering information...")
+                            researcher = create_agent("You are a Research Agent. Gather key facts, data points, and trends about the topic. Be concise — output 3-5 bullet points of findings.")
+                            st.write("📊 **Analyst** analyzing findings...")
+                            analyst = create_agent("You are an Analyst Agent. Take research findings and provide strategic analysis: opportunities, risks, and recommendations. Be concise.")
+                            st.write("✍️ **Writer** composing final report...")
+                            writer = create_agent("You are a Writer Agent. Take the analysis and write a clear, professional executive summary (3-4 paragraphs max).")
+
+                            builder = GraphBuilder()
+                            builder.add_node(researcher, node_id="researcher")
+                            builder.add_node(analyst, node_id="analyst")
+                            builder.add_node(writer, node_id="writer")
+                            builder.add_edge("researcher", "analyst")
+                            builder.add_edge("analyst", "writer")
+                            builder.set_entry_point("researcher")
+                            graph = builder.build()
+                            result = graph(selected)
+                            # Extract per-node text from GraphResult
+                            def _extract_node_text(node_result):
+                                try:
+                                    msg = node_result.result.message
+                                    content = msg.get('content', [])
+                                    return content[0].get('text', '') if content else ''
+                                except Exception:
+                                    return str(node_result)
+
+                            node_results = result.results if hasattr(result, 'results') else {}
+                            researcher_text = _extract_node_text(node_results['researcher']) if 'researcher' in node_results else ""
+                            analyst_text = _extract_node_text(node_results['analyst']) if 'analyst' in node_results else ""
+                            writer_text = _extract_node_text(node_results['writer']) if 'writer' in node_results else ""
+                            final_output = writer_text or analyst_text or researcher_text or "No output generated."
+                            st.session_state.m1p5_graph_results = {
+                                "researcher": researcher_text,
+                                "analyst": analyst_text,
+                                "writer": final_output,
+                            }
+                        except Exception as e:
+                            final_output = f"Error: {e}"
+                            st.session_state.m1p5_graph_results = {}
+                    st.markdown(final_output)
+                st.session_state.m1p5_graph_msgs.append({"role": "assistant", "content": final_output})
+                st.rerun()
+
+        if prompt := st.chat_input("Enter a topic for the Graph pipeline...", key="m1p5_graph_input"):
+            st.session_state.m1p5_graph_msgs.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            with st.chat_message("assistant"):
+                with st.status("Running Graph pipeline...", expanded=True):
+                    try:
+                        from strands.multiagent.graph import GraphBuilder
+
+                        st.write("🔬 **Researcher** gathering information...")
+                        researcher = create_agent("You are a Research Agent. Gather key facts, data points, and trends about the topic. Be concise — output 3-5 bullet points of findings.")
+                        st.write("📊 **Analyst** analyzing findings...")
+                        analyst = create_agent("You are an Analyst Agent. Take research findings and provide strategic analysis: opportunities, risks, and recommendations. Be concise.")
+                        st.write("✍️ **Writer** composing final report...")
+                        writer = create_agent("You are a Writer Agent. Take the analysis and write a clear, professional executive summary (3-4 paragraphs max).")
+
+                        builder = GraphBuilder()
+                        builder.add_node(researcher, node_id="researcher")
+                        builder.add_node(analyst, node_id="analyst")
+                        builder.add_node(writer, node_id="writer")
+                        builder.add_edge("researcher", "analyst")
+                        builder.add_edge("analyst", "writer")
+                        builder.set_entry_point("researcher")
+                        graph = builder.build()
+                        result = graph(prompt)
+                        def _extract_node_text(node_result):
+                            try:
+                                msg = node_result.result.message
+                                content = msg.get('content', [])
+                                return content[0].get('text', '') if content else ''
+                            except Exception:
+                                return str(node_result)
+
+                        node_results = result.results if hasattr(result, 'results') else {}
+                        researcher_text = _extract_node_text(node_results['researcher']) if 'researcher' in node_results else ""
+                        analyst_text = _extract_node_text(node_results['analyst']) if 'analyst' in node_results else ""
+                        writer_text = _extract_node_text(node_results['writer']) if 'writer' in node_results else ""
+                        final_output = writer_text or analyst_text or researcher_text or "No output generated."
+                        st.session_state.m1p5_graph_results = {
+                            "researcher": researcher_text,
+                            "analyst": analyst_text,
+                            "writer": final_output,
+                        }
+                    except Exception as e:
+                        final_output = f"Error: {e}"
+                        st.session_state.m1p5_graph_results = {}
+                st.markdown(final_output)
+            st.session_state.m1p5_graph_msgs.append({"role": "assistant", "content": final_output})
 
     elif pattern == "Swarm":
         st.markdown("""
-        **Swarm pattern:** Each agent decides when to hand off. All agents share full context
-        including task description, history, and available agents.
+        **Swarm pattern:** Agents autonomously decide when to hand off. All agents share full context and coordinate freely.
         """)
-        st.code("""
-from strands.multiagent import Swarm
 
-swarm = Swarm(agents=[researcher, analyst, writer])
-result = swarm(
-    "Research and write a report on solar energy",
-    invocation_state={"budget": "$100K", "region": "APAC"}
-)
-        """, language="python")
+        with st.expander("📝 Code", expanded=False):
+            st.code("""
+from strands.multiagent.swarm import Swarm
+from strands import Agent
 
-    st.caption(":material/info: These patterns use `invocation_state` to share state across agents via `ToolContext`.")
+optimist = Agent(system_prompt="You see opportunities...")
+critic = Agent(system_prompt="You identify risks...")
+strategist = Agent(system_prompt="You synthesize into strategy...")
+
+swarm = Swarm(nodes=[optimist, critic, strategist])
+result = swarm("Evaluate launching an AI product in APAC")
+            """, language="python")
+
+        if "m1p5_swarm_msgs" not in st.session_state:
+            st.session_state.m1p5_swarm_msgs = []
+
+        for msg in st.session_state.m1p5_swarm_msgs:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        if not st.session_state.m1p5_swarm_msgs:
+            suggestions = ["Evaluate launching an AI product in APAC", "Should we open-source our SDK?", "Migrate to microservices or stay monolith?"]
+            selected = st.pills("Try:", suggestions, key="m1p5_swarm_pills")
+            if selected:
+                st.session_state.m1p5_swarm_msgs.append({"role": "user", "content": selected})
+                with st.chat_message("user"):
+                    st.markdown(selected)
+                with st.chat_message("assistant"):
+                    with st.status("Swarm agents collaborating...", expanded=True):
+                        try:
+                            from strands.multiagent.swarm import Swarm
+
+                            st.write("🌟 **Optimist** seeing opportunities...")
+                            optimist = create_agent("You are the Optimist. Identify opportunities, upsides, and reasons to proceed. Be concise (3-4 points). When you've made your case, hand off to the next agent.", name="Optimist")
+                            st.write("⚠️ **Critic** identifying risks...")
+                            critic = create_agent("You are the Critic. Identify risks, downsides, and potential failure modes. Be concise (3-4 points). When done, hand off to the next agent.", name="Critic")
+                            st.write("🎯 **Strategist** synthesizing...")
+                            strategist = create_agent("You are the Strategist. Synthesize the optimist and critic views into a balanced recommendation with concrete next steps. Be concise.", name="Strategist")
+
+                            swarm = Swarm(nodes=[optimist, critic, strategist])
+                            result = swarm(selected)
+                            # Extract text from SwarmResult
+                            try:
+                                node_results = result.results if hasattr(result, 'results') else {}
+                                # Get the last agent's output
+                                texts = []
+                                for node_id in node_results:
+                                    nr = node_results[node_id]
+                                    try:
+                                        msg = nr.result.message
+                                        content = msg.get('content', [])
+                                        texts.append(content[0].get('text', ''))
+                                    except Exception:
+                                        pass
+                                final_output = "\n\n".join(texts) if texts else str(result)
+                            except Exception:
+                                final_output = str(result)
+                        except Exception as e:
+                            final_output = f"Error: {e}"
+                    st.markdown(final_output)
+                st.session_state.m1p5_swarm_msgs.append({"role": "assistant", "content": final_output})
+                st.rerun()
+
+        if prompt := st.chat_input("Enter a decision for the Swarm to debate...", key="m1p5_swarm_input"):
+            st.session_state.m1p5_swarm_msgs.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+            with st.chat_message("assistant"):
+                with st.status("Swarm agents collaborating...", expanded=True):
+                    try:
+                        from strands.multiagent.swarm import Swarm
+
+                        st.write("🌟 **Optimist** seeing opportunities...")
+                        optimist = create_agent("You are the Optimist. Identify opportunities, upsides, and reasons to proceed. Be concise (3-4 points). When you've made your case, hand off to the next agent.", name="Optimist")
+                        st.write("⚠️ **Critic** identifying risks...")
+                        critic = create_agent("You are the Critic. Identify risks, downsides, and potential failure modes. Be concise (3-4 points). When done, hand off to the next agent.", name="Critic")
+                        st.write("🎯 **Strategist** synthesizing...")
+                        strategist = create_agent("You are the Strategist. Synthesize the optimist and critic views into a balanced recommendation with concrete next steps. Be concise.", name="Strategist")
+
+                        swarm = Swarm(nodes=[optimist, critic, strategist])
+                        result = swarm(prompt)
+                        # Extract text from SwarmResult
+                        try:
+                            node_results = result.results if hasattr(result, 'results') else {}
+                            texts = []
+                            for node_id in node_results:
+                                nr = node_results[node_id]
+                                try:
+                                    msg = nr.result.message
+                                    content = msg.get('content', [])
+                                    texts.append(content[0].get('text', ''))
+                                except Exception:
+                                    pass
+                            final_output = "\n\n".join(texts) if texts else str(result)
+                        except Exception:
+                            final_output = str(result)
+                    except Exception as e:
+                        final_output = f"Error: {e}"
+                st.markdown(final_output)
+            st.session_state.m1p5_swarm_msgs.append({"role": "assistant", "content": final_output})
+
+    st.caption(":material/info: Graph uses `GraphBuilder` for dependency-based execution. Swarm uses autonomous agent handoffs.")
 
 # =============================================================================
 # AUTO-RUN WALKTHROUGH (#7)

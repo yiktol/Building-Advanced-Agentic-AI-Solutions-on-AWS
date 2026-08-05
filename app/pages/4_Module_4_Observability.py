@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 import boto3
 from style import inject_css, part_header
-from agent_utils import create_agent, chat_response, MODEL_ID
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, MODEL_ID
 from strands import tool
 
 st.set_page_config(page_title="Module 4: Observability", page_icon="4️⃣", layout="wide")
@@ -29,6 +29,7 @@ with st.sidebar:
     _s = get_agentcore_status()
     from style import show_status_badge
     show_status_badge("Evaluator", _s['evaluator'])
+    show_status_badge("Guardrail", _s['guardrail'])
     show_status_badge("CloudWatch", True)
     if st.button("🔄 Reset Session", key="m4_reset_session", use_container_width=True):
         for key in list(st.session_state.keys()):
@@ -48,9 +49,9 @@ METRICS_NAMESPACE = os.environ.get("METRICS_NAMESPACE", "AgentMetrics")
 # PART 1: Metrics
 # =============================================================================
 if part == "Part 1 — Metrics":
-    part_header("Real-time metrics", "Every interaction emits latency, token, and tool metrics to CloudWatch.")
+    part_header("Real-time metrics", "Every interaction emits latency, token, and tool metrics.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module4-observability/diagrams/part1_tracing.png"
+    diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module4-observability/diagrams/part1_tracing.png"
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -59,62 +60,128 @@ if part == "Part 1 — Metrics":
         st.session_state.m4p1_agent = None
         st.session_state.m4p1_msgs = []
         st.session_state.m4p1_metrics = []
+    if "m4p1_metrics" not in st.session_state:
+        st.session_state.m4p1_metrics = []
 
+    # Cumulative session metrics at the top
     if st.session_state.m4p1_metrics:
-        st.markdown("**📊 Metrics**")
-        for m in st.session_state.m4p1_metrics[-5:]:
-            st.caption(f"⏱ {m['latency']:.0f}ms | ~{m['tokens']} tok")
+        all_m = st.session_state.m4p1_metrics
+        total_input = sum(m.get("inputTokens", 0) for m in all_m)
+        total_output = sum(m.get("outputTokens", 0) for m in all_m)
+        total_latency = sum(m.get("latencyMs", 0) for m in all_m)
+        avg_latency = total_latency / len(all_m)
+        total_tool_calls = sum(m.get("toolCalls", 0) for m in all_m)
+        latest = all_m[-1]
+        prev = all_m[-2] if len(all_m) > 1 else None
+
+        with st.container(border=True):
+            st.markdown("##### 📊 Observability Dashboard")
+            mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+            mc1.metric("Total Input Tokens", f"{total_input:,}",
+                       delta=f"+{latest.get('inputTokens', 0):,}" if prev else None, delta_color="off")
+            mc2.metric("Total Output Tokens", f"{total_output:,}",
+                       delta=f"+{latest.get('outputTokens', 0):,}" if prev else None, delta_color="off")
+            mc3.metric("Avg Latency", f"{avg_latency:.0f}ms",
+                       delta=f"{latest.get('latencyMs', 0) - avg_latency:+.0f}ms" if prev else None,
+                       delta_color="inverse")
+            mc4.metric("Total Tool Calls", total_tool_calls,
+                       delta=f"+{latest.get('toolCalls', 0)}" if prev else None, delta_color="off")
+            mc5.metric("Interactions", len(all_m))
+            # Token usage bar
+            st.progress(min(total_input / 10000, 1.0), text=f"Token budget: {total_input:,} / 10,000 (session limit example)")
 
     if st.session_state.m4p1_agent is None:
+        st.session_state.m4p1_tool_calls = 0
+
         @tool
         def search_products(query: str) -> str:
             """Search products. Args: query: search term"""
-            time.sleep(0.2)
-            return "TechMart Pro 15 ($799), Air ($599), Hub ($149)"
+            st.session_state.m4p1_tool_calls += 1
+            return "TechMart Pro 15 ($799, i7/16GB), Air ($599, i5/8GB), Hub ($149, Wi-Fi 6), Titan ($1299, RTX 4060)"
+
+        @tool
+        def check_inventory(product_name: str) -> str:
+            """Check product inventory. Args: product_name: product to check"""
+            st.session_state.m4p1_tool_calls += 1
+            stock = {"pro": "In stock (23 units)", "air": "In stock (45 units)", "hub": "Low stock (3 units)", "titan": "In stock (12 units)"}
+            for k, v in stock.items():
+                if k in product_name.lower():
+                    return f"{product_name}: {v}"
+            return f"{product_name}: Out of stock"
 
         st.session_state.m4p1_agent = create_agent(
-            "You are a TechMart sales agent. Use tools to search products.",
-            tools=[search_products],
+            "You are a TechMart sales agent. Use search_products to find products and check_inventory to verify availability. Be helpful and concise.",
+            tools=[search_products, check_inventory],
         )
 
-    for msg in st.session_state.m4p1_msgs:
+    if "m4p1_tool_calls" not in st.session_state:
+        st.session_state.m4p1_tool_calls = 0
+
+    for idx, msg in enumerate(st.session_state.m4p1_msgs):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            metrics_idx = idx // 2
+            if metrics_idx < len(st.session_state.m4p1_metrics):
+                m = st.session_state.m4p1_metrics[metrics_idx]
+                with st.container(border=True):
+                    mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+                    mc1.metric("⬇️ Input", f"{m.get('inputTokens', 0):,}")
+                    mc2.metric("⬆️ Output", f"{m.get('outputTokens', 0):,}")
+                    mc3.metric("⏱️ Latency", f"{m.get('latencyMs', 0)}ms")
+                    mc4.metric("🔧 Tools", m.get("toolCalls", 0))
+                    mc5.metric("Σ Total", f"{m.get('totalTokens', 0):,}")
 
     # Suggestion chips
     if not st.session_state.m4p1_msgs:
-        suggestions = ["Search for TechMart Hub", "What laptops under $800?"]
+        suggestions = ["Search for TechMart Hub", "What laptops under $800?", "Is the Titan in stock?"]
         selected = st.pills("Try:", suggestions, key="m4p1_pills")
         if selected:
             st.session_state.m4p1_msgs.append({"role": "user", "content": selected})
+            st.session_state.m4p1_tool_calls = 0
             with st.chat_message("user"):
                 st.markdown(selected)
             with st.chat_message("assistant"):
                 with st.spinner("Processing..."):
                     import time as _t; _s = _t.time()
-                    resp = chat_response(st.session_state.m4p1_agent, selected)
-                    elapsed = (_t.time() - _s) * 1000
-                    tokens = len(resp) // 4
-                    st.session_state.m4p1_metrics.append({"latency": elapsed, "tokens": tokens})
+                    resp, metrics = chat_response_with_metrics(st.session_state.m4p1_agent, selected)
+                    wall_time = (_t.time() - _s) * 1000
+                    metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
+                    metrics["toolCalls"] = st.session_state.m4p1_tool_calls
                 st.markdown(resp)
-                st.caption(f"📊 {elapsed:.0f}ms | ~{tokens} tokens")
+            with st.container(border=True):
+                mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+                mc1.metric("⬇️ Input", f"{metrics.get('inputTokens', 0):,}")
+                mc2.metric("⬆️ Output", f"{metrics.get('outputTokens', 0):,}")
+                mc3.metric("⏱️ Latency", f"{metrics.get('latencyMs', 0)}ms")
+                mc4.metric("🔧 Tools", metrics.get("toolCalls", 0))
+                mc5.metric("Σ Total", f"{metrics.get('totalTokens', 0):,}")
             st.session_state.m4p1_msgs.append({"role": "assistant", "content": resp})
+            st.session_state.m4p1_metrics.append(metrics)
             st.rerun()
 
     if prompt := st.chat_input("Ask about products...", submit_mode="disable"):
         st.session_state.m4p1_msgs.append({"role": "user", "content": prompt})
+        st.session_state.m4p1_tool_calls = 0
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
             with st.spinner("Processing..."):
                 import time as _t; _s = _t.time()
-                resp = chat_response(st.session_state.m4p1_agent, prompt)
-                elapsed = (_t.time() - _s) * 1000
-                tokens = len(resp) // 4
-                st.session_state.m4p1_metrics.append({"latency": elapsed, "tokens": tokens})
+                resp, metrics = chat_response_with_metrics(st.session_state.m4p1_agent, prompt)
+                wall_time = (_t.time() - _s) * 1000
+                metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
+                metrics["toolCalls"] = st.session_state.m4p1_tool_calls
             st.markdown(resp)
-            st.caption(f"📊 {elapsed:.0f}ms | ~{tokens} tokens")
+        with st.container(border=True):
+            mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+            mc1.metric("⬇️ Input", f"{metrics.get('inputTokens', 0):,}")
+            mc2.metric("⬆️ Output", f"{metrics.get('outputTokens', 0):,}")
+            mc3.metric("⏱️ Latency", f"{metrics.get('latencyMs', 0)}ms")
+            mc4.metric("🔧 Tools", metrics.get("toolCalls", 0))
+            mc5.metric("Σ Total", f"{metrics.get('totalTokens', 0):,}")
         st.session_state.m4p1_msgs.append({"role": "assistant", "content": resp})
+        st.session_state.m4p1_metrics.append(metrics)
 
 # =============================================================================
 # PART 2: Loop detection
@@ -130,28 +197,51 @@ elif part == "Part 2 — Loop detection":
     if "m4p2_agent" not in st.session_state:
         st.session_state.m4p2_agent = None
         st.session_state.m4p2_msgs = []
+    if "m4p2_calls" not in st.session_state:
         st.session_state.m4p2_calls = 0
+    if "m4p2_breaker" not in st.session_state:
         st.session_state.m4p2_breaker = False
 
-    breaker_status = "🔴 OPEN" if st.session_state.m4p2_breaker else "🟢 Closed"
-    st.metric("Circuit Breaker", breaker_status)
-    st.metric("Tool Calls", st.session_state.m4p2_calls)
-    st.caption("Trips at 10 calls")
+    # Sync counter from closure to session state BEFORE rendering dashboard
+    if "m4p2_loop_counter" in st.session_state:
+        lc = st.session_state.m4p2_loop_counter
+        st.session_state.m4p2_calls = lc[0]
+        st.session_state.m4p2_breaker = lc[1]
+
+    # Circuit breaker dashboard
+    with st.container(border=True):
+        cb_col1, cb_col2, cb_col3 = st.columns(3)
+        if st.session_state.m4p2_breaker:
+            cb_col1.metric("Circuit Breaker", "🔴 TRIPPED")
+        else:
+            cb_col1.metric("Circuit Breaker", "🟢 Closed")
+        cb_col2.metric("Tool Calls", st.session_state.m4p2_calls)
+        cb_col3.metric("Threshold", 10)
+        if st.session_state.m4p2_calls > 0:
+            st.progress(min(st.session_state.m4p2_calls / 10, 1.0),
+                        text=f"{'🚨 TRIPPED!' if st.session_state.m4p2_breaker else f'{st.session_state.m4p2_calls}/10 calls'}")
 
     if st.session_state.m4p2_agent is None:
+        # Use a plain list as mutable counter (accessible from tool closure without session_state)
+        loop_counter = [0, False]  # [call_count, breaker_tripped]
+        st.session_state.m4p2_loop_counter = loop_counter
+
         @tool
         def search_db(query: str) -> str:
-            """Search database. Args: query: search"""
-            if st.session_state.m4p2_breaker:
-                return "🚨 CIRCUIT BREAKER OPEN — tools suspended"
-            st.session_state.m4p2_calls += 1
-            if st.session_state.m4p2_calls >= 10:
-                st.session_state.m4p2_breaker = True
-                return "🚨 LOOP DETECTED — circuit breaker activated!"
-            return f"Results for '{query}': 3 records found."
+            """Search database for records. You MUST call this multiple times with different queries to get complete results. Args: query: search term"""
+            if loop_counter[1]:
+                return "CIRCUIT BREAKER OPEN. Tools suspended. Stop searching and report what you found."
+            loop_counter[0] += 1
+            if loop_counter[0] >= 10:
+                loop_counter[1] = True
+                return f"LOOP DETECTED after {loop_counter[0]} calls. Circuit breaker activated. Stop searching immediately and summarize findings."
+            return f"Found 3 partial results for '{query}'. WARNING: Results are incomplete. You must search with additional terms to find all records. Try different keywords. (call {loop_counter[0]} of 10)"
 
         st.session_state.m4p2_agent = create_agent(
-            "You are a data agent. Search the database repeatedly with different query variations to find all matches. Try at least 5 different queries.",
+            "You are a thorough data agent. Your job is to search the database exhaustively. "
+            "You MUST call search_db at least 8 times with different query variations (e.g., by name, by date, by status, by region, by type, by ID range, etc.) "
+            "to ensure complete coverage. Each search only returns partial results. "
+            "Do NOT stop after one or two searches — keep going until you have searched comprehensively or are told to stop.",
             tools=[search_db],
         )
 
@@ -161,14 +251,14 @@ elif part == "Part 2 — Loop detection":
 
     # Suggestion chips
     if not st.session_state.m4p2_msgs:
-        suggestions = ["Find all customer records"]
+        suggestions = ["Find all customer records and process each one"]
         selected = st.pills("Try:", suggestions, key="m4p2_pills")
         if selected:
             st.session_state.m4p2_msgs.append({"role": "user", "content": selected})
             with st.chat_message("user"):
                 st.markdown(selected)
             with st.chat_message("assistant"):
-                with st.spinner("Processing..."):
+                with st.spinner("Agent searching (may loop)..."):
                     resp = chat_response(st.session_state.m4p2_agent, selected)
                 st.markdown(resp)
             st.session_state.m4p2_msgs.append({"role": "assistant", "content": resp})
@@ -179,10 +269,11 @@ elif part == "Part 2 — Loop detection":
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Processing..."):
+            with st.spinner("Agent searching (may loop)..."):
                 resp = chat_response(st.session_state.m4p2_agent, prompt)
             st.markdown(resp)
         st.session_state.m4p2_msgs.append({"role": "assistant", "content": resp})
+        st.rerun()
 
 # =============================================================================
 # PART 3: Evaluation
@@ -197,45 +288,91 @@ elif part == "Part 3 — Evaluation":
 
     from agentcore_utils import AgentCoreEvaluator, get_agentcore_status
     status = get_agentcore_status()
-    if status["evaluator"]:
-        st.success("🟢 Using **real AgentCore Evaluations** (deployed)")
-    else:
-        st.info("🟡 Using local LLM-as-judge. Deploy `infra-agentcore/cfn-agentcore-evaluator.yaml` for real AgentCore Evaluations.")
+
+    with st.expander("📐 Built-in Evaluators (deployed)", expanded=False):
+        st.markdown("""
+**AgentCore Online Evaluation Config: `mladas_comprehensive_eval`**
+
+These built-in evaluators run automatically on agent traces in production:
+
+| Evaluator | Level | What it measures |
+|-----------|-------|-----------------|
+| `Builtin.Correctness` | TRACE | Factual accuracy of the response |
+| `Builtin.Helpfulness` | TRACE | How useful and actionable the response is |
+| `Builtin.Coherence` | TRACE | Logical consistency of the response |
+| `Builtin.ToolSelectionAccuracy` | TOOL_CALL | Whether the right tool was chosen |
+| `Builtin.GoalSuccessRate` | SESSION | Whether the user's overall goal was achieved |
+
+These evaluate real OpenTelemetry traces emitted by agents on AgentCore Runtime.
+For this interactive demo, we use a local LLM-as-judge that scores responses immediately.
+        """)
+
+    st.info("🧪 LLM-as-judge evaluates agent responses using the same dimensions as the built-in AgentCore evaluators.")
 
     if "m4p3_results" not in st.session_state:
         st.session_state.m4p3_results = []
 
-    if st.session_state.m4p3_results:
-        avg = sum(r["score"] for r in st.session_state.m4p3_results) / len(st.session_state.m4p3_results)
-        st.metric("Avg Score", f"{avg:.2f}")
-        for r in st.session_state.m4p3_results[-3:]:
-            icon = "🟢" if r["score"] >= 0.75 else "🟡" if r["score"] >= 0.5 else "🔴"
-            st.caption(f"{icon} {r['evaluator']}: {r['score']:.2f} ({r.get('source', 'unknown')})")
-
     test_query = st.text_input("Query to evaluate:", value="My TechMart Hub keeps dropping Wi-Fi. Firmware v2.1.3.", key="m4p3_query")
 
     if st.button("🧪 Evaluate", key="m4p3_eval"):
-        with st.status("Running evaluation...", expanded=True):
-            st.write("Getting agent response...")
-            agent = create_agent("You are a TechMart support agent. TechMart Hub v2.1.x has Wi-Fi bug — update to v3.0.1.")
+        with st.spinner("Running evaluation (5 dimensions)..."):
+            agent = create_agent("You are a TechMart support agent. TechMart Hub v2.1.x has Wi-Fi bug — update to v3.0.1. Be helpful and concise.")
             agent_resp = chat_response(agent, test_query)
-            st.write(f"**Agent:** {agent_resp[:200]}...")
 
-            st.write("Evaluating...")
-            evaluators = [
-                ("Correctness", AgentCoreEvaluator(os.environ.get("ToolSelectionEvaluatorId", ""))),
-                ("Helpfulness", AgentCoreEvaluator(os.environ.get("ComplianceEvaluatorId", ""))),
-            ]
+            from strands import Agent as _A
+            from strands.models import BedrockModel as _BM
+            from agent_utils import _get_judge_model_id
+            import json as _json
 
-            for name, evaluator in evaluators:
-                result = evaluator.evaluate(test_query, agent_resp)
-                score = result["score"]
-                source = result.get("source", "unknown")
-                st.session_state.m4p3_results.append({"evaluator": name, "score": score, "source": source})
-                icon = "🟢" if score >= 0.75 else "🟡" if score >= 0.5 else "🔴"
-                st.write(f"{icon} **{name}**: {score:.2f} (via {source})")
+            judge_model = _BM(model_id=_get_judge_model_id(), max_tokens=1024)
+            judge = _A(
+                model=judge_model,
+                system_prompt="""You are an agent evaluator scoring responses on 5 dimensions matching AgentCore built-in evaluators.
 
-        st.rerun()
+Score each dimension 0.0 to 1.0:
+1. **Correctness** — Is the response factually accurate?
+2. **Helpfulness** — Is it useful and actionable for the user?
+3. **Coherence** — Is it logically consistent and well-structured?
+4. **ToolSelection** — Did the agent use appropriate tools (or correctly not use tools)?
+5. **GoalSuccess** — Did the response achieve what the user was asking for?
+
+Return ONLY a JSON object with these exact keys:
+{"Correctness": 0.X, "Helpfulness": 0.X, "Coherence": 0.X, "ToolSelection": 0.X, "GoalSuccess": 0.X, "explanation": "brief reasoning"}
+""",
+            )
+            judge_resp = str(judge(f"User query: {test_query}\n\nAgent response: {agent_resp}\n\nScore this response."))
+
+            scores = {"Correctness": 0.5, "Helpfulness": 0.5, "Coherence": 0.5, "ToolSelection": 0.5, "GoalSuccess": 0.5}
+            explanation = ""
+            try:
+                if "{" in judge_resp:
+                    parsed = _json.loads(judge_resp[judge_resp.index("{"):judge_resp.rindex("}") + 1])
+                    for key in scores:
+                        if key in parsed:
+                            scores[key] = float(parsed[key])
+                    explanation = parsed.get("explanation", "")
+            except Exception:
+                pass
+
+            st.session_state.m4p3_results.append({"scores": scores, "explanation": explanation, "query": test_query, "response": agent_resp})
+            st.rerun()
+
+    # Display results persistently
+    if st.session_state.m4p3_results:
+        for i, result in enumerate(reversed(st.session_state.m4p3_results)):
+            with st.container(border=True):
+                st.caption(f"**Query:** {result['query']}")
+                st.markdown(f"**Agent:** {result['response'][:300]}...")
+                mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+                for col, (name, score) in zip([mc1, mc2, mc3, mc4, mc5], result["scores"].items()):
+                    icon = "🟢" if score >= 0.75 else "🟡" if score >= 0.5 else "🔴"
+                    col.metric(f"{icon} {name}", f"{score:.2f}")
+                avg = sum(result["scores"].values()) / len(result["scores"])
+                st.progress(avg, text=f"Overall: {avg:.2f} / 1.00")
+                if result.get("explanation"):
+                    st.caption(f"💬 {result['explanation']}")
+            if i >= 2:
+                break  # Show last 3 evaluations
 
 
 # =============================================================================

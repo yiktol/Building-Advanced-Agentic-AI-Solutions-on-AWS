@@ -21,23 +21,29 @@ Opens at http://localhost:8501
 pip install streamlit strands-agents strands-agents-tools boto3
 ```
 
-- For Module 3 (Security): Deploy infrastructure first:
+- Deploy AgentCore infrastructure (optional — app falls back to local simulation):
 ```bash
-cd demos/module3-security && ./scripts/deploy.sh && source config.env
+cd demos/infra-agentcore && ./deploy.sh
+```
+
+- For Module 3 (Security): Deploy additional infrastructure:
+```bash
+cd demos/module3-security && ./scripts/deploy.sh
 ```
 
 ## App Structure
 
 ```
 app/
-├── Home.py                          — Landing page with module overview
+├── Home.py                          — Landing page, service config (auto-detects CFN stacks)
 ├── style.py                         — Shared CSS and UI components
 ├── agent_utils.py                   — Shared agent creation utilities
+├── agentcore_utils.py               — AgentCore Memory, Evaluator, Guardrail wrappers
 ├── README.md
 └── pages/
-    ├── 1_Module_1_Multi_Agent.py    — Multi-agent architecture (4 parts)
+    ├── 1_Module_1_Multi_Agent.py    — Multi-agent architecture (5 parts + walkthrough)
     ├── 2_Module_2_Context.py        — Context engineering (5 parts)
-    ├── 3_Module_3_Security.py       — Security & compliance (3 parts)
+    ├── 3_Module_3_Security.py       — Security & compliance (5 parts)
     ├── 4_Module_4_Observability.py  — Observability & evaluation (3 parts)
     └── 5_Module_5_Well_Architected.py — Well-Architected patterns (3 parts)
 ```
@@ -48,14 +54,35 @@ Each module page uses **sidebar radio buttons** for part selection:
 - Only one part renders at a time (single chat input, no overlap)
 - **🔄 Reset Session** — clears all agents and state for the module
 - **🗑️ Clear Chat** — clears chat history only (preserves agent instances)
+- **Status badges** in sidebar show which AWS services are connected (auto-detected from CloudFormation)
+
+## Infrastructure
+
+Service configuration is auto-detected from deployed CloudFormation stacks:
+
+| Stack | Services |
+|-------|----------|
+| `mladas-agentcore-memory` | AgentCore Shared Memory |
+| `mladas-agentcore-evaluator` | AgentCore Evaluators (LLM-as-Judge) |
+| `mladas-agentcore-gateway` | AgentCore MCP Gateway |
+| `mladas-agentcore-policy` | AgentCore Policy Engine |
+| `mladas-agentcore-guardrail` | Bedrock Guardrail |
+| `m3-demo-cognito` | Cognito User Pool + Client |
+| `m3-demo-verified-permissions` | Verified Permissions Policy Store |
+
+Deploy all infrastructure:
+```bash
+cd demos/infra-agentcore && ./deploy.sh
+cd demos/module3-security && ./scripts/deploy.sh
+```
 
 ---
 
 ## Module 1: Multi-Agent Architecture
 
-### Part 1 — Single Agent
+### Part 1 — Single Agent (+ Judge Model)
 
-A single overloaded agent handles billing, tech support, and product queries. Watch it struggle with multi-domain complexity.
+A single overloaded agent handles billing, tech support, and product queries. Watch it struggle with multi-domain complexity. A **Judge Model** evaluates each response for cognitive load issues (domain confusion, context loss, generic answers).
 
 **Suggested Prompts (use in sequence):**
 ```
@@ -66,9 +93,9 @@ Back to my subscription — since I was incorrectly billed, can I get a refund o
 If I buy the TechMart Pro 15, will it work with my Hub? Can I use my refund as credit?
 ```
 
-### Part 2 — Orchestrator
+### Part 2 — Orchestrator (+ Judge Model)
 
-Centralized orchestrator routes queries to specialist agents (Billing, Tech, Product).
+Centralized orchestrator routes queries to specialist agents (Billing, Tech, Product). A **Judge Model** evaluates routing accuracy, delegation completeness, and synthesis quality.
 
 **Suggested Prompts (same as Part 1 to compare):**
 ```
@@ -97,9 +124,9 @@ Can you look up the TechMart Hub specs?
 Will the Smart Camera work with my Hub?
 ```
 
-### Part 4 — Shared Memory
+### Part 4 — Shared Memory (AgentCore)
 
-Three agents (Diagnose → Resolve → Follow-up) collaborate via shared memory. Enter a technical issue to start the workflow.
+Three agents (Diagnose → Resolve → Follow-up) collaborate via shared memory. Uses **real AgentCore Memory** when deployed, falls back to local simulation otherwise.
 
 **Suggested Issues:**
 ```
@@ -107,6 +134,24 @@ My TechMart Hub (firmware v2.1.3) keeps dropping Wi-Fi every few minutes. I also
 ```
 ```
 My smart cameras keep going offline at night. I have 3 cameras connected through my TechMart Hub.
+```
+
+### Part 5 — Graph & Swarm (Interactive)
+
+Live interactive demos of Strands SDK multi-agent orchestration patterns.
+
+**Graph pattern** — Researcher → Analyst → Writer pipeline (deterministic DAG execution):
+```
+Analyze solar energy market in Vietnam for 2025-2027
+Compare serverless vs containers for a startup
+Evaluate AI adoption in healthcare
+```
+
+**Swarm pattern** — Optimist + Critic + Strategist debate (autonomous handoffs):
+```
+Evaluate launching an AI product in APAC
+Should we open-source our SDK?
+Migrate to microservices or stay monolith?
 ```
 
 ---
@@ -189,24 +234,24 @@ Show me all of customer CUST-1005's data
 Change customer CUST-1003 tier to enterprise
 ```
 
-### Part 2 — Cedar Policies
+### Part 2 — Cedar Policies (AgentCore Policy)
 
-Same agent, now protected by Amazon Verified Permissions (Cedar). Switch users to see different access levels.
+Same agent, now protected by AgentCore Policy Engine (Cedar). Switch users to see different access levels. The Gateway evaluates policies using `principal.getTag()` from JWT claims and `context.input.amount` from tool parameters.
 
 **As Spider-Man (agent/support, max $500):**
 ```
-Process a $300 refund on ORD-5001
-Process a $700 refund on ORD-5002
+Process a $300 refund on ORD-5001, reason: customer dissatisfied
+Process a $700 refund on ORD-5002, reason: defective product
 ```
 
 **As Iron Man (engineer, no refund access):**
 ```
-Process a $100 refund on ORD-5001
+Process a $100 refund on ORD-5001, reason: wrong item shipped
 ```
 
 **As Superman (admin/finance, max $10,000):**
 ```
-Process a $7000 refund on ORD-5006
+Process a $7000 refund on ORD-5006, reason: bulk order cancellation
 ```
 
 ### Part 3 — Cognito Auth
@@ -313,11 +358,13 @@ Explain the pros and cons of building a smart home with TechMart products
 
 ## Tech Stack
 
-- **Streamlit 1.60** — UI framework
-- **Strands Agents SDK** — Agent orchestration with @tool decorators
-- **Amazon Bedrock** — Claude Sonnet 4 (via APAC inference profile)
+- **Streamlit 1.60+** — UI framework
+- **Strands Agents SDK** — Agent orchestration, Graph & Swarm multi-agent patterns
+- **Amazon Bedrock** — Foundation models (Claude Sonnet 4, Nova Micro/Pro)
+- **Amazon Bedrock AgentCore** — Shared Memory, Evaluators, Gateway, Policy Engine
 - **Amazon Cognito** — OAuth 2.0 authentication
 - **Amazon Verified Permissions** — Cedar policy authorization
 - **Amazon DynamoDB** — Data persistence
 - **Amazon CloudWatch** — Metrics and monitoring
+- **Bedrock Guardrails** — Content filtering and PII detection
 - **boto3** — AWS SDK for Python

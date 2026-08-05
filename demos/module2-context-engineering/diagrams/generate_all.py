@@ -4,7 +4,7 @@ from diagrams import Diagram, Cluster, Edge
 from diagrams.custom import Custom
 from diagrams.aws.ml import Bedrock
 
-ICONS = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/aws-icons/custom"
+ICONS = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/aws-icons/custom"
 USER = f"{ICONS}/user.png"
 ROBOT = f"{ICONS}/robot.png"
 TOOL = f"{ICONS}/tool.png"

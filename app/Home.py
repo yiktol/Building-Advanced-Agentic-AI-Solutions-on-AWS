@@ -18,15 +18,21 @@ st.set_page_config(
 # --- Auto-detect CloudFormation Stack Outputs ---
 @st.cache_data(ttl=300)
 def get_cfn_outputs():
-    """Derive service configuration from infra-agentcore CloudFormation stack outputs."""
-    prefix = "mladas-agentcore"
-    stacks = ["memory", "evaluator", "gateway", "policy", "guardrail"]
+    """Derive service configuration from infra-agentcore and module3 CloudFormation stack outputs."""
+    stacks_to_check = [
+        "mladas-agentcore-memory",
+        "mladas-agentcore-evaluator",
+        "mladas-agentcore-gateway",
+        "mladas-agentcore-policy",
+        "mladas-agentcore-guardrail",
+        "m3-demo-cognito",
+        "m3-demo-verified-permissions",
+    ]
     outputs = {}
 
     try:
         cfn = boto3.client("cloudformation")
-        for component in stacks:
-            stack_name = f"{prefix}-{component}"
+        for stack_name in stacks_to_check:
             try:
                 resp = cfn.describe_stacks(StackName=stack_name)
                 for output in resp["Stacks"][0].get("Outputs", []):
@@ -169,7 +175,7 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
         temp_val = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.7, step=0.1, key="cfg_temp_slider", help="Controls randomness. Lower = more focused, higher = more creative.")
         st.session_state["cfg_temperature"] = temp_val
     with pcol2:
-        max_tok_val = st.slider("Max tokens", min_value=256, max_value=4096, value=1024, step=256, key="cfg_max_tokens_slider", help="Maximum response length in tokens.")
+        max_tok_val = st.slider("Max tokens", min_value=256, max_value=4096, value=2048, step=256, key="cfg_max_tokens_slider", help="Maximum response length in tokens.")
         st.session_state["cfg_max_tokens"] = max_tok_val
     st.caption(f"Generation: `{generation_models[gen_choice]}` | Judge: `{judge_models[judge_choice]}` | Temp: {temp_val} | Max: {max_tok_val}")
 
@@ -193,16 +199,20 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
         st.text_input("Evaluator ID", key="cfg_ToolSelectionEvaluatorId",
                       value=cfn_outputs.get("ToolSelectionEvaluatorId", ""),
                       placeholder="Builtin.Correctness")
-        st.markdown("**:material/policy: Verified Permissions**")
-        st.caption("Enables Cedar policy authorization for agent tool calls (Module 3 Part 2). Controls refund limits per role.")
-        st.text_input("Policy Store ID", key="cfg_PolicyStoreId",
-                      value=cfn_outputs.get("PolicyEngineId", ""),
-                      placeholder="MUXmjAfT8j...")
+        st.markdown("**:material/policy: AgentCore Policy**")
+        st.caption("Enables Cedar policy authorization for agent tool calls (Module 3 Part 2). Controls refund limits per role via AgentCore Policy Engine.")
+        st.text_input("Policy Engine ID", key="cfg_PolicyStoreId",
+                      value=cfn_outputs.get("PolicyStoreId", cfn_outputs.get("PolicyEngineId", "")),
+                      placeholder="mladas_policy_engine-xxx")
     with c3:
         st.markdown("**:material/person: Amazon Cognito**")
         st.caption("Enables real OAuth 2.0 authentication with JWT tokens (Module 3 Part 3). Users authenticate and claims drive authorization.")
-        st.text_input("Cognito User Pool ID", key="cfg_CognitoUserPoolId", placeholder="ap-southeast-1_abc123")
-        st.text_input("Cognito Client ID", key="cfg_CognitoClientId", placeholder="7eq16iqg...")
+        st.text_input("Cognito User Pool ID", key="cfg_CognitoUserPoolId",
+                      value=cfn_outputs.get("UserPoolId", ""),
+                      placeholder="ap-southeast-1_abc123")
+        st.text_input("Cognito Client ID", key="cfg_CognitoClientId",
+                      value=cfn_outputs.get("UserPoolClientId", ""),
+                      placeholder="7eq16iqg...")
         st.markdown("**:material/hub: AgentCore Gateway**")
         st.caption("MCP-compatible tool gateway for centralized tool access (Module 1 Part 3).")
         st.text_input("Gateway ID", key="cfg_GatewayId",
@@ -225,7 +235,7 @@ with col1:
     modules = [
         ("1️⃣", "Multi-Agent Architecture", "Orchestration patterns, agent-as-tool, shared memory"),
         ("2️⃣", "Context Engineering", "Prompt caching, conversation managers, context isolation"),
-        ("3️⃣", "Security & Compliance", "Cognito auth, Cedar policies, VPC, audit trails"),
+        ("3️⃣", "Security & Compliance", "Cognito auth, AgentCore Policy (Cedar), VPC, audit trails"),
         ("4️⃣", "Observability", "Tracing, metrics, loop detection, LLM evaluation"),
         ("5️⃣", "Well-Architected", "Ops excellence, reliability, cost optimization"),
     ]
@@ -245,8 +255,8 @@ with col2:
     st.markdown("""
     - **Strands Agents SDK** — Agent orchestration
     - **Amazon Bedrock** — Foundation models (Claude Sonnet 4)
+    - **Amazon Bedrock AgentCore** — Memory, Gateway, Policy Engine, Evaluators
     - **Amazon Cognito** — Authentication (OAuth 2.0)
-    - **Amazon Verified Permissions** — Cedar authorization
     - **Amazon DynamoDB** — Data persistence
     - **Amazon CloudWatch** — Metrics, alarms, dashboards
     - **Amazon VPC** — Private connectivity

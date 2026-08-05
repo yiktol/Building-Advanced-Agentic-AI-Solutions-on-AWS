@@ -8,7 +8,7 @@ from diagrams.aws.management import Cloudwatch
 from diagrams.aws.integration import SNS
 from diagrams.aws.devtools import XRay
 
-ICONS = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/aws-icons/custom"
+ICONS = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/aws-icons/custom"
 USER = f"{ICONS}/user.png"
 ROBOT = f"{ICONS}/robot.png"
 

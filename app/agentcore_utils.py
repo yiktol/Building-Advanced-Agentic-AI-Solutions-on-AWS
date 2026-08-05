@@ -14,7 +14,7 @@ from datetime import datetime
 
 
 def _get_config(key: str, default: str = "") -> str:
-    """Get config value from session_state first, then env var."""
+    """Get config value from session_state first, then env var, then CFN outputs."""
     try:
         import streamlit as st
         val = st.session_state.get(f"cfg_{key}", "")
@@ -22,7 +22,52 @@ def _get_config(key: str, default: str = "") -> str:
             return val.strip()
     except Exception:
         pass
-    return os.environ.get(key, default)
+    env_val = os.environ.get(key, "")
+    if env_val:
+        return env_val
+    # Fallback: check CFN stack outputs
+    cfn_vals = _get_cfn_config_cached()
+    return cfn_vals.get(key, default)
+
+
+def _get_cfn_config_cached() -> dict:
+    """Load CFN outputs once and cache in module-level variable."""
+    global _cfn_cache
+    if _cfn_cache is not None:
+        return _cfn_cache
+    _cfn_cache = _load_cfn_outputs()
+    return _cfn_cache
+
+
+_cfn_cache = None
+
+
+def _load_cfn_outputs() -> dict:
+    """Query CloudFormation stacks for service configuration outputs."""
+    stacks_to_check = [
+        "mladas-agentcore-memory",
+        "mladas-agentcore-evaluator",
+        "mladas-agentcore-gateway",
+        "mladas-agentcore-policy",
+        "mladas-agentcore-guardrail",
+        "m3-demo-cognito",
+        "m3-demo-verified-permissions",
+    ]
+    outputs = {}
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+        cfn = boto3.client("cloudformation", region_name=REGION)
+        for stack_name in stacks_to_check:
+            try:
+                resp = cfn.describe_stacks(StackName=stack_name)
+                for output in resp["Stacks"][0].get("Outputs", []):
+                    outputs[output["OutputKey"]] = output["OutputValue"]
+            except (ClientError, Exception):
+                continue
+    except Exception:
+        pass
+    return outputs
 
 
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
@@ -218,5 +263,8 @@ def get_agentcore_status() -> dict:
         "memory": bool(_get_config("SharedMemoryId")),
         "evaluator": bool(_get_config("ToolSelectionEvaluatorId")),
         "guardrail": bool(_get_config("GuardrailId")),
+        "cognito": bool(_get_config("UserPoolId") or _get_config("CognitoUserPoolId")),
+        "policy_store": bool(_get_config("PolicyStoreId") or _get_config("PolicyEngineId")),
+        "gateway": bool(_get_config("GatewayId")),
         "region": REGION,
     }

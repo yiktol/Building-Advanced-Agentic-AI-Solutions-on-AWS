@@ -8,7 +8,7 @@ from diagrams.aws.security import Cognito, IAMPermissions
 from diagrams.aws.network import VPC, Privatelink
 from diagrams.aws.management import Cloudwatch
 
-ICONS = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/aws-icons/custom"
+ICONS = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/aws-icons/custom"
 USER = f"{ICONS}/user.png"
 ROBOT = f"{ICONS}/robot.png"
 

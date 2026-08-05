@@ -12,9 +12,9 @@ and CloudWatch audit logging.
 ┌─────────────────────────────────────────────────────────────────────┐
 │  User authenticates via Cognito (OAuth 2.0)                          │
 │       ↓ JWT Token                                                    │
-│  Agent extracts claims (role, department, max_refund)                 │
-│       ↓ Claims as context                                            │
-│  Verified Permissions evaluates Cedar policy                         │
+│  AgentCore Gateway receives tool call request                        │
+│       ↓ JWT claims → principal tags                                  │
+│  AgentCore Policy Engine evaluates Cedar policies                    │
 │       ↓ ALLOW / DENY                                                 │
 │  Tool executes (DynamoDB read/write)                                 │
 │       ↓ Result                                                       │
@@ -83,8 +83,8 @@ source config.env
 | Part | File | AWS Resources | Concept |
 |------|------|---------------|---------|
 | 1 | `part1_unprotected_agent.py` | DynamoDB | No security (the problem) |
-| 2 | `part2_cedar_policies.py` | Verified Permissions + DynamoDB | Cedar policy authorization |
-| 3 | `part3_cognito_identity.py` | Cognito + Verified Permissions + DynamoDB | Real OAuth + JWT + Cedar |
+| 2 | `part2_cedar_policies.py` | AgentCore Policy / Verified Permissions + DynamoDB | Cedar policy authorization |
+| 3 | `part3_cognito_identity.py` | Cognito + AgentCore Policy + DynamoDB | Real OAuth + JWT + Cedar |
 | 4 | `part4_vpc_private_access.py` | VPC + Endpoints | Private connectivity verification |
 | 5 | `part5_audit_trail.py` | CloudWatch Logs + DynamoDB | Structured audit logging |
 
@@ -160,19 +160,15 @@ query (runs CloudWatch Insights)
 
 ---
 
-## Cedar Policies Summary
+## Cedar Policies Summary (AgentCore Policy Engine)
 
-| Policy | Effect | Condition |
-|--------|--------|-----------|
-| Finance admin refund | permit | dept=finance AND role=admin |
-| Support agent refund | permit | dept=support AND role=agent AND amount < $500 |
-| Manager refund | permit | role=manager AND amount < $2,000 |
-| Security lead refund | permit | role=security_lead AND amount < $5,000 |
-| Engineer refund ban | **forbid** | dept=engineering |
-| View order | permit | all authenticated users |
-| View customer | permit | all authenticated users |
-| Modify customer | permit | role=admin OR role=manager |
-| Access audit log | permit | role=admin OR role=security_lead |
+| Policy | Effect | Condition | Entity Model |
+|--------|--------|-----------|-------------|
+| Finance admin refund | permit | `principal.getTag("department") == "finance" && principal.getTag("role") == "admin"` | AgentCore::Action |
+| Support agent refund | permit | `principal.getTag("department") == "support" && context.input.amount < 500` | AgentCore::Action |
+| Security lead refund | permit | `principal.getTag("role") == "security_lead" && context.input.amount < 5000` | AgentCore::Action |
+| Engineer refund ban | **forbid** | `principal.getTag("department") == "engineering"` | AgentCore::Action |
+| View order | permit | all authenticated users | AgentCore::Action |
 
 ---
 

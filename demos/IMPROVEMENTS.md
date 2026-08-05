@@ -90,18 +90,24 @@ reasoning = response['reasoning']
 
 **Prerequisites:** AgentCore Evaluations is available in preview. No resource creation needed for built-in evaluators.
 
-### #4 — AgentCore Policy (Module 3)
+### #4 — AgentCore Policy (Module 3) ✅ DONE
 
 **What:** Use AgentCore Policy instead of direct Verified Permissions calls.
 
-**Implementation Note:** AgentCore Policy wraps Verified Permissions with:
-- Natural language → Cedar conversion
-- JWT claims → Entity Store tags (automatic)
-- Gateway-level enforcement
+**Status:** Implemented. The Streamlit app (Part 2) now uses the AgentCore Policy entity model:
+- `AgentCore::OAuthUser` with `principal.getTag()` for JWT claims
+- `AgentCore::Action::"targetName___operationId"` for tool actions
+- `AgentCore::Gateway::"<arn>"` for resource scoping
+- `context.input.amount` for attribute-based conditions
+- Default-deny, forbid-wins semantics
 
-The current implementation using Verified Permissions directly is functionally equivalent and demonstrates the same Cedar concepts from the slides. AgentCore Policy adds the Gateway integration layer which is more relevant for Runtime-hosted agents.
+Policies deployed in AgentCore Policy Engine (`mladas_policy_engine-rnk8ps49yd`):
+- `allow_finance_admin_refund` — unlimited refunds for finance admins
+- `allow_support_agent_refund` — refunds < $500 for support agents
+- `allow_security_lead_refund` — refunds < $5000 for security leads
+- `forbid_engineer_refund` — engineers cannot process refunds
 
-**When to upgrade:** When deploying agents on AgentCore Runtime.
+The standalone demo scripts (`part2_cedar_policies.py`, `part3_cognito_identity.py`) still use Verified Permissions as an alternative implementation path.
 
 ### #5 — MCP via AgentCore Gateway (Module 1/2)
 

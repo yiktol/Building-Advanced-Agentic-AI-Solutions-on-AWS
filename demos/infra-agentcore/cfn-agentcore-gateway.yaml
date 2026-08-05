@@ -156,6 +156,25 @@ Resources:
                     responses:
                       "200":
                         description: Order details
+                /refund:
+                  post:
+                    operationId: processRefund
+                    summary: Process a refund on an order
+                    requestBody:
+                      content:
+                        application/json:
+                          schema:
+                            type: object
+                            properties:
+                              order_id:
+                                type: string
+                              amount:
+                                type: integer
+                              reason:
+                                type: string
+                    responses:
+                      "200":
+                        description: Refund result
 
 Outputs:
   GatewayId:
