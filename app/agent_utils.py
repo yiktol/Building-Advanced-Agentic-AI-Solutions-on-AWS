@@ -53,7 +53,9 @@ def get_model():
         kwargs["max_tokens"] = 2048
 
     if guardrail:
-        kwargs.update(guardrail)
+        # Only apply guardrail if not using cross-region inference profile
+        if not model_id.startswith(("apac.", "global.")):
+            kwargs.update(guardrail)
     return BedrockModel(model_id=model_id, **kwargs)
 
 
