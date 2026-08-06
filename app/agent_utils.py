@@ -20,7 +20,7 @@ def _get_model_id():
 
 
 def _get_judge_model_id():
-    """Get judge model ID from session state or default to generation model."""
+    """Get judge model ID from session state or default to nova pro."""
     try:
         import streamlit as st
         val = st.session_state.get("cfg_JUDGE_MODEL_ID", "")
@@ -28,17 +28,23 @@ def _get_judge_model_id():
             return val.strip()
     except Exception:
         pass
-    return _get_model_id()
+    return "apac.amazon.nova-pro-v1:0"
 
 
 def get_model():
-    """Get the Bedrock model instance, with guardrail and inference params if configured."""
-    from agentcore_utils import get_guardrail_config
-    guardrail = get_guardrail_config()
-    model_id = _get_model_id()
+    """Get the Bedrock model instance."""
+    model_id = "apac.amazon.nova-micro-v1:0"
 
-    # Get inference parameters from session state
-    kwargs = {}
+    # Try to get from session state (Home page selector)
+    try:
+        import streamlit as st
+        val = st.session_state.get("cfg_MODEL_ID", "")
+        if val and val.strip():
+            model_id = val.strip()
+    except Exception:
+        pass
+
+    kwargs = {"max_tokens": 2048}
     try:
         import streamlit as st
         temp = st.session_state.get("cfg_temperature", None)
@@ -47,15 +53,9 @@ def get_model():
             kwargs["temperature"] = temp
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
-        else:
-            kwargs["max_tokens"] = 2048
     except Exception:
-        kwargs["max_tokens"] = 2048
+        pass
 
-    if guardrail:
-        # Only apply guardrail if not using cross-region inference profile
-        if not model_id.startswith(("apac.", "global.")):
-            kwargs.update(guardrail)
     return BedrockModel(model_id=model_id, **kwargs)
 
 
