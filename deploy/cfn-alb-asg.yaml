@@ -1,0 +1,275 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "MLADAS Demo - Auto Scaling Group with ALB for Streamlit on port 8501."
+
+Parameters:
+  LatestAWSLinuxAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: '/aws/service/cloud9/amis/ubuntu-22.04-x86_64'
+  Domain:
+    Type: String
+  CertId:
+    Type: String
+  SourcePrefixListId:
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetId:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnetId:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnetTwoId:
+    Type: AWS::EC2::Subnet::Id
+  CloudFrontALBSecretName:
+    Type: String
+  ProjectPrefix:
+    Type: String
+    Default: mladas-app
+  InstanceType:
+    Type: String
+    Default: t3.large
+
+Resources:
+  # --- Security Groups ---
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CloudFront HTTPS to ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - SourcePrefixListId: !Ref SourcePrefixListId
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB to Streamlit
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
+          IpProtocol: tcp
+          FromPort: 8501
+          ToPort: 8501
+
+  # --- IAM ---
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: MLADASDemoPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["bedrock:*", "bedrock-agentcore:*", "bedrock-agentcore-control:*"]
+                Resource: "*"
+              - Effect: Allow
+                Action: ["logs:*"]
+                Resource: "*"
+              - Effect: Allow
+                Action: ["dynamodb:*"]
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/m3-demo-*"
+              - Effect: Allow
+                Action: ["cognito-idp:*"]
+                Resource: "*"
+              - Effect: Allow
+                Action: ["verifiedpermissions:*"]
+                Resource: "*"
+              - Effect: Allow
+                Action: ["ssm:GetParameter", "ssm:GetParameters"]
+                Resource: "*"
+              - Effect: Allow
+                Action: ["secretsmanager:GetSecretValue"]
+                Resource: "*"
+              - Effect: Allow
+                Action: ["cloudformation:DescribeStacks", "cloudformation:ListStacks"]
+                Resource: "*"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  # --- Launch Template ---
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        ImageId: !Ref LatestAWSLinuxAmiId
+        InstanceType: !Ref InstanceType
+        BlockDeviceMappings:
+          - DeviceName: "/dev/sda1"
+            Ebs:
+              VolumeType: gp3
+              VolumeSize: 50
+              DeleteOnTermination: true
+        SecurityGroupIds:
+          - !Ref InstanceSecurityGroup
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub '${ProjectPrefix}-server'
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -xe
+            exec > /var/log/userdata.log 2>&1
+            export DEBIAN_FRONTEND=noninteractive
+
+            # Wait for apt locks
+            while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+
+            apt-get update -y
+            apt-get install -y python3.12 python3.12-venv python3.12-dev git graphviz curl jq
+
+            # Install AWS CLI
+            if ! command -v aws &>/dev/null; then
+              curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+              unzip -q /tmp/awscliv2.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws*
+            fi
+
+            # Clone repo
+            cd /home/ubuntu
+            if [ ! -d "Building-Advanced-Agentic-AI-Solutions-on-AWS" ]; then
+              sudo -u ubuntu git clone https://github.com/yiktol/Building-Advanced-Agentic-AI-Solutions-on-AWS.git
+            fi
+            cd Building-Advanced-Agentic-AI-Solutions-on-AWS
+
+            # Setup venv
+            sudo -u ubuntu python3.12 -m venv venv
+            sudo -u ubuntu venv/bin/pip install --upgrade pip
+            sudo -u ubuntu venv/bin/pip install -r app/requirements.txt
+
+            # Systemd service
+            cat > /etc/systemd/system/mladas-app.service <<'EOF'
+            [Unit]
+            Description=MLADAS Demo Streamlit App
+            After=network.target
+
+            [Service]
+            Type=exec
+            User=ubuntu
+            WorkingDirectory=/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/app
+            ExecStart=/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/venv/bin/streamlit run Home.py \
+              --server.port 8501 --server.headless true --server.enableCORS false
+            Restart=always
+            RestartSec=5
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+            systemctl daemon-reload
+            systemctl enable mladas-app
+            systemctl start mladas-app
+            chown -R ubuntu:ubuntu /home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS
+
+  # --- ASG ---
+  ServerGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub '${ProjectPrefix}-asg'
+      VPCZoneIdentifier: [!Ref PrivateSubnetId]
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      TargetGroupARNs: [!Ref TargetGroup]
+      MixedInstancesPolicy:
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref LaunchTemplate
+            Version: !GetAtt LaunchTemplate.LatestVersionNumber
+          Overrides:
+            - InstanceType: t3a.large
+            - InstanceType: t3.large
+        InstancesDistribution:
+          OnDemandBaseCapacity: 1
+          OnDemandPercentageAboveBaseCapacity: 0
+          SpotAllocationStrategy: capacity-optimized-prioritized
+
+  # --- ALB ---
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub 'lb-${ProjectPrefix}'
+      Scheme: internet-facing
+      IpAddressType: dualstack
+      Subnets: [!Ref PublicSubnetId, !Ref PublicSubnetTwoId]
+      SecurityGroups: [!Ref LoadBalancerSecurityGroup]
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "120"
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ProjectPrefix}-tg'
+      Port: 8501
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      HealthCheckPath: /_stcore/health
+      HealthCheckIntervalSeconds: 30
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
+
+  ListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS-1-2-2017-01
+      Certificates:
+        - CertificateArn: !Sub 'arn:aws:acm:${AWS::Region}:${AWS::AccountId}:certificate/${CertId}'
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: 404
+            ContentType: text/html
+            MessageBody: Not Found
+
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref ListenerHTTPS
+      Priority: 1
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: !Join ['', ['{{resolve:secretsmanager:', !Ref CloudFrontALBSecretName, ':SecretString:HEADER_NAME}}']]
+            Values:
+              - !Join ['', ['{{resolve:secretsmanager:', !Ref CloudFrontALBSecretName, ':SecretString:HEADER_VALUE}}']]
+
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub '${Domain}.'
+      Name: !Sub 'lb-${ProjectPrefix}.${Domain}'
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+        DNSName: !GetAtt LoadBalancer.DNSName
+
+Outputs:
+  LoadBalancerDNS:
+    Value: !GetAtt LoadBalancer.DNSName
+  StreamlitURL:
+    Value: !Sub 'https://lb-${ProjectPrefix}.${Domain}'

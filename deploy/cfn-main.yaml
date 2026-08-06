@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  MLADAS Demo - EC2 deployment with ALB and CloudFront.
+  Uses existing VPC from CloudFormation exports.
+
+Parameters:
+  Prefix:
+    Type: String
+    Description: S3 prefix for nested templates
+
+  BucketRegion:
+    Type: String
+    Description: Region where S3 bucket exists
+
+  ParameterPrefix:
+    Type: String
+    Default: /genai/cognito
+
+  ProjectPrefix:
+    Type: String
+    Default: mladas-app
+
+Mappings:
+  NetworkMap:
+    ap-southeast-1:
+      cfprefixlist: pl-31a34658
+      certId: 8186a3c2-b2cb-4c40-9210-86f79070d7ba
+
+Resources:
+  SSMParameterReaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterPrefix}/*'
+
+  SSMParameterReaderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt SSMParameterReaderRole.Arn
+      Timeout: 30
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import urllib3
+          
+          http = urllib3.PoolManager()
+          ssm = boto3.client('ssm')
+          
+          def send_response(event, context, status, data):
+              body = json.dumps({
+                  'Status': status,
+                  'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data
+              })
+              http.request('PUT', event['ResponseURL'], body=body, headers={'Content-Type': ''})
+          
+          def handler(event, context):
+              try:
+                  if event['RequestType'] == 'Delete':
+                      send_response(event, context, 'SUCCESS', {})
+                      return
+                  name = event['ResourceProperties']['ParameterName']
+                  value = ssm.get_parameter(Name=name, WithDecryption=True)['Parameter']['Value']
+                  send_response(event, context, 'SUCCESS', {'Value': value})
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+
+  BucketNameParam:
+    Type: Custom::SSMParameter
+    Properties:
+      ServiceToken: !GetAtt SSMParameterReaderFunction.Arn
+      ParameterName: !Sub '${ParameterPrefix}/BucketName'
+
+  DomainNameParam:
+    Type: Custom::SSMParameter
+    Properties:
+      ServiceToken: !GetAtt SSMParameterReaderFunction.Arn
+      ParameterName: !Sub '${ParameterPrefix}/DomainName'
+
+  WAFArnParam:
+    Type: Custom::SSMParameter
+    Properties:
+      ServiceToken: !GetAtt SSMParameterReaderFunction.Arn
+      ParameterName: !Sub '${ParameterPrefix}/WebApplicationFirewallACLArn'
+
+  CertificateIdParam:
+    Type: Custom::SSMParameter
+    Properties:
+      ServiceToken: !GetAtt SSMParameterReaderFunction.Arn
+      ParameterName: !Sub '${ParameterPrefix}/CertificateId'
+
+  CloudFrontStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        - 'https://${Bucket}.s3.${BucketRegion}.amazonaws.com/${Prefix}/cfn-cloudfront.yaml'
+        - Bucket: !GetAtt BucketNameParam.Value
+      Parameters:
+        DomainName: !GetAtt DomainNameParam.Value
+        WebApplicationFirewallACLArn: !GetAtt WAFArnParam.Value
+        CertificateId: !GetAtt CertificateIdParam.Value
+        ProjectPrefix: !Ref ProjectPrefix
+
+  AlbAsgStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        - 'https://${Bucket}.s3.${BucketRegion}.amazonaws.com/${Prefix}/cfn-alb-asg.yaml'
+        - Bucket: !GetAtt BucketNameParam.Value
+      Parameters:
+        Domain: !GetAtt DomainNameParam.Value
+        CertId: !FindInMap [NetworkMap, !Ref AWS::Region, certId]
+        SourcePrefixListId: !FindInMap [NetworkMap, !Ref AWS::Region, cfprefixlist]
+        VpcId: !ImportValue VpcId
+        PublicSubnetId: !ImportValue PublicSubnetOne
+        PublicSubnetTwoId: !ImportValue PublicSubnetTwo
+        PrivateSubnetId: !ImportValue PrivateSubnetOne
+        CloudFrontALBSecretName: !GetAtt CloudFrontStack.Outputs.CloudFrontALBSecretName
+        ProjectPrefix: !Ref ProjectPrefix

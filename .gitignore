@@ -59,3 +59,6 @@ demos/*/diagrams/*.svg
 
 # AWS icons
 aws-icons/
+
+# Temp folder
+trmp/
