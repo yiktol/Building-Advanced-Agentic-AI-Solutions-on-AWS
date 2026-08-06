@@ -94,7 +94,7 @@ Output format:
 
     def judge_response(user_query: str, agent_response: str) -> str:
         """Use a Judge Model to evaluate the agent's response for cognitive load issues."""
-        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id())
+        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id(), region_name="ap-southeast-1")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_SYSTEM_PROMPT)
         evaluation_prompt = f"""Evaluate this single-agent interaction:
 
@@ -217,7 +217,7 @@ Output format:
 
     def judge_orchestrator_response(user_query: str, agent_response: str) -> str:
         """Use a Judge Model to evaluate the orchestrator's routing and synthesis."""
-        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id())
+        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id(), region_name="ap-southeast-1")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_ORCH_SYSTEM_PROMPT)
         evaluation_prompt = f"""Evaluate this orchestrator interaction:
 

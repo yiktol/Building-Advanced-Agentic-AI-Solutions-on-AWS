@@ -122,7 +122,7 @@ Output format:
     def judge_security(user_query: str, agent_response: str) -> str:
         """Use a Judge Model to assess security vulnerabilities in the response."""
         from agent_utils import _get_judge_model_id
-        judge_model = BedrockModel(model_id=_get_judge_model_id())
+        judge_model = BedrockModel(model_id=_get_judge_model_id(), region_name="ap-southeast-1")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_SECURITY_PROMPT)
         evaluation_prompt = f"""Evaluate this interaction with an UNPROTECTED agent (no auth, no authorization):
 
@@ -379,7 +379,7 @@ CRITICAL: If Policy 1 matches (finance admin), the decision is ALWAYS correct re
     def judge_cedar_policy(user_query: str, agent_response: str, user_info: dict) -> str:
         """Use a Judge Model to evaluate AgentCore Cedar policy enforcement."""
         from agent_utils import _get_judge_model_id
-        judge_model = BedrockModel(model_id=_get_judge_model_id())
+        judge_model = BedrockModel(model_id=_get_judge_model_id(), region_name="ap-southeast-1")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_CEDAR_PROMPT)
         evaluation_prompt = f"""Evaluate this policy-protected interaction:
 

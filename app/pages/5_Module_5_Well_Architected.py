@@ -28,9 +28,9 @@ def _do_cost_query(query, tiering_enabled):
         with st.spinner(f"Processing ({tier} tier)..."):
             # Use different models based on tier
             if tier == "economy":
-                model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0", max_tokens=1024)
+                model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0", region_name="ap-southeast-1", max_tokens=1024)
             else:
-                model = BedrockModel(model_id=MODEL_ID, max_tokens=2048)
+                model = BedrockModel(model_id=MODEL_ID, region_name="ap-southeast-1", max_tokens=2048)
             agent = Agent(model=model, system_prompt="You are a TechMart assistant. Pro 15 $799, Air $599, Titan $1299, Hub $149. Be concise.")
             import time as _t
             _s = _t.time()

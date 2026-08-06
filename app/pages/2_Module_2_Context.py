@@ -151,7 +151,7 @@ from strands import Agent
 from strands.models import BedrockModel
 
 # Enable prompt caching on the model
-model = BedrockModel(model_id="apac.anthropic.claude-sonnet-4-20250514-v1:0", cache_tools="default")
+model = BedrockModel(model_id="apac.anthropic.claude-sonnet-4-20250514-v1:0", region_name="ap-southeast-1", cache_tools="default")
 
 # Large system prompt with a cache point marker
 system_prompt = [
@@ -181,7 +181,7 @@ print(usage["cacheWriteInputTokens"])  # 0 on cache hit
     st.caption(":material/info: First call writes to cache (1.25× cost). Subsequent calls read from cache (discounted rate). Watch the metrics change.")
 
     if st.session_state.m2p2_agent is None:
-        model = BedrockModel(model_id=MODEL_ID, cache_tools="default")
+        model = BedrockModel(model_id=MODEL_ID, region_name="ap-southeast-1", cache_tools="default")
         large_prompt = "You are a financial analyst for GlobalTech Corp ($12.1B revenue). " * 20 + "\nProvide detailed analysis with specific numbers."
         system_with_cache = [{"text": large_prompt}, {"cachePoint": {"type": "default"}}]
         st.session_state.m2p2_agent = Agent(model=model, system_prompt=system_with_cache)
@@ -288,7 +288,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands.agent.conversation_manager import SummarizingConversationManager
 
-model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0")
+model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0", region_name="ap-southeast-1")
 
 # SummarizingConversationManager compresses older messages
 # when context grows too large, preserving recent messages intact.
@@ -320,7 +320,7 @@ result = agent("List all key architectural decisions we've made so far")
 
     if st.session_state.m2p3_agent is None:
         st.session_state.m2p3_agent = Agent(
-            model=BedrockModel(model_id=MODEL_ID),
+            model=BedrockModel(model_id=MODEL_ID, region_name="ap-southeast-1"),
             system_prompt="You are a software architect. Design systems incrementally. Reference prior decisions.",
             conversation_manager=SummarizingConversationManager(summary_ratio=0.5, preserve_recent_messages=4),
         )
@@ -374,7 +374,7 @@ elif part == "Part 4 — Isolation":
 from strands import Agent
 from strands.models import BedrockModel
 
-model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0")
+model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0", region_name="ap-southeast-1")
 
 # Each agent is isolated — only receives the output of the previous stage.
 # No agent sees the full conversation history or other agents' prompts.
@@ -623,7 +623,7 @@ Output format:
     def judge_context_failure(user_query: str, agent_response: str, injected_mode: str) -> str:
         """Use a Judge Model to evaluate context failure impact."""
         from agent_utils import _get_judge_model_id
-        judge_model = BedrockModel(model_id=_get_judge_model_id())
+        judge_model = BedrockModel(model_id=_get_judge_model_id(), region_name="ap-southeast-1")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_CONTEXT_FAILURE_PROMPT)
         evaluation_prompt = f"""Evaluate this interaction where the agent has **{injected_mode}** injected into its context:
 
