@@ -67,6 +67,21 @@ def _load_cfn_outputs() -> dict:
                 continue
     except Exception:
         pass
+
+    # Hardcoded fallback
+    if not outputs:
+        outputs = {
+            "SharedMemoryId": "mladas_shared_memory-FnBIrUFMzJ",
+            "ToolSelectionEvaluatorId": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:evaluator/mladas_tool_selection-jYBteNHyI9",
+            "GatewayId": "mladas-tool-gateway-3tz53bxvi7",
+            "PolicyEngineId": "mladas_policy_engine-rnk8ps49yd",
+            "GuardrailId": "mz9uffp9swwy",
+            "GuardrailVersion": "1",
+            "UserPoolId": "ap-southeast-1_E0sMjmTN0",
+            "UserPoolClientId": "330l8sbjpagntgjqtm2bcpau63",
+            "PolicyStoreId": "UaLcNnxRby5abt23mN5LCm",
+        }
+
     return outputs
 
 
