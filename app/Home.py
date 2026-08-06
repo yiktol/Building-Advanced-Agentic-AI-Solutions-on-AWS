@@ -150,27 +150,23 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
     st.markdown("**:material/smart_toy: Model Configuration**")
     mcol1, mcol2 = st.columns(2)
     generation_models = {
+        "Nova Micro": "amazon.nova-micro-v1:0",
+        "Nova Lite": "amazon.nova-lite-v1:0",
+        "Nova Pro": "amazon.nova-pro-v1:0",
         "Claude Sonnet 4 (APAC)": "apac.anthropic.claude-sonnet-4-20250514-v1:0",
-        "Claude Sonnet 4.6 (Global)": "global.anthropic.claude-sonnet-4-6",
-        "Claude Sonnet 5 (Global)": "global.anthropic.claude-sonnet-5",
         "Claude Sonnet 4.5 (Global)": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
         "Claude Haiku 4.5 (Global)": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-        "Nova Pro (APAC)": "apac.amazon.nova-pro-v1:0",
-        "Nova Lite (APAC)": "apac.amazon.nova-lite-v1:0",
-        "Nova Micro (APAC)": "apac.amazon.nova-micro-v1:0",
     }
     judge_models = {
+        "Nova Pro": "amazon.nova-pro-v1:0",
         "Claude Sonnet 4 (APAC)": "apac.anthropic.claude-sonnet-4-20250514-v1:0",
-        "Claude Sonnet 4.6 (Global)": "global.anthropic.claude-sonnet-4-6",
-        "Claude Sonnet 5 (Global)": "global.anthropic.claude-sonnet-5",
         "Claude Haiku 4.5 (Global)": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-        "Nova Pro (APAC)": "apac.amazon.nova-pro-v1:0",
     }
     with mcol1:
         gen_choice = st.selectbox(
             "Generation model",
             list(generation_models.keys()),
-            index=7,
+            index=0,
             key="cfg_generation_model_name",
             help="Model used for all agent responses",
         )
@@ -179,7 +175,7 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
         judge_choice = st.selectbox(
             "Judge model (evaluation)",
             list(judge_models.keys()),
-            index=2,
+            index=0,
             key="cfg_judge_model_name",
             help="Model used for LLM-as-judge evaluation scoring",
         )
