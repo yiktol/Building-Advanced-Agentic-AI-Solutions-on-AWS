@@ -44,7 +44,7 @@ def get_model():
     except Exception:
         pass
 
-    kwargs = {"max_tokens": 2048}
+    kwargs = {"max_tokens": 2048, "region_name": "ap-southeast-1"}
     try:
         import streamlit as st
         temp = st.session_state.get("cfg_temperature", None)
