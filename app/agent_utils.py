@@ -16,7 +16,7 @@ def _get_model_id():
             return val.strip()
     except Exception:
         pass
-    return MODEL_ID
+    return MODEL_ID or "apac.amazon.nova-micro-v1:0"
 
 
 def _get_judge_model_id():
