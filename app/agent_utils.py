@@ -4,7 +4,7 @@ import os
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-MODEL_ID = os.environ.get("MODEL_ID", "amazon.nova-micro-v1:0")
+MODEL_ID = os.environ.get("MODEL_ID", "apac.amazon.nova-micro-v1:0")
 
 
 def _get_model_id():
