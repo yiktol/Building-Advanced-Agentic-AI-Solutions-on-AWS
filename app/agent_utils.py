@@ -68,10 +68,45 @@ def create_agent(system_prompt: str, tools: list = None, name: str = None) -> Ag
     return Agent(**kwargs)
 
 
+def _partial_text_from_agent(agent: Agent) -> str:
+    """Recover the partial assistant text Strands appended before hitting the
+    max-tokens limit. Returns '' if nothing usable is found."""
+    try:
+        for msg in reversed(getattr(agent, "messages", []) or []):
+            if msg.get("role") != "assistant":
+                continue
+            parts = [c.get("text", "") for c in msg.get("content", []) if isinstance(c, dict) and c.get("text")]
+            if parts:
+                return "".join(parts)
+    except Exception:
+        pass
+    return ""
+
+
+_MAX_TOKENS_NOTE = (
+    "\n\n> ⚠️ _Response was cut off because it hit the max-tokens limit. "
+    "This is expected in this demo as the context grows — raise **Max tokens** "
+    "on the Home page, or start a new conversation._"
+)
+
+
 def chat_response(agent: Agent, message: str) -> str:
-    """Get a response from the agent and return as string."""
-    response = agent(message)
-    return str(response)
+    """Get a response from the agent and return as string.
+
+    Gracefully handles the max-tokens limit (common in the context-growth demos)
+    by returning the partial text instead of raising.
+    """
+    try:
+        from strands.types.exceptions import MaxTokensReachedException
+    except Exception:  # pragma: no cover
+        MaxTokensReachedException = ()
+
+    try:
+        response = agent(message)
+        return str(response)
+    except MaxTokensReachedException:
+        partial = _partial_text_from_agent(agent)
+        return (partial or "_(No output before the token limit was reached.)_") + _MAX_TOKENS_NOTE
 
 
 def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
@@ -79,8 +114,21 @@ def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
 
     metrics_dict contains: inputTokens, outputTokens, totalTokens, latencyMs,
     cacheReadInputTokens, cacheWriteInputTokens
+
+    Gracefully handles the max-tokens limit by returning the partial text.
     """
-    response = agent(message)
+    try:
+        from strands.types.exceptions import MaxTokensReachedException
+    except Exception:  # pragma: no cover
+        MaxTokensReachedException = ()
+
+    try:
+        response = agent(message)
+    except MaxTokensReachedException:
+        partial = _partial_text_from_agent(agent)
+        text = (partial or "_(No output before the token limit was reached.)_") + _MAX_TOKENS_NOTE
+        return text, {"maxTokensReached": True}
+
     text = str(response)
     metrics = {}
     try:
