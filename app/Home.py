@@ -3,6 +3,7 @@ Building Advanced Agentic Systems on AWS — Lab Application
 Main entry point with modern UI/UX.
 """
 
+import os
 import streamlit as st
 import boto3
 from botocore.exceptions import ClientError
@@ -30,8 +31,13 @@ def get_cfn_outputs():
     ]
     outputs = {}
 
+    # Resolve region explicitly: on EC2 there is no default region configured,
+    # so boto3.client("cloudformation") would raise NoRegionError and the lookup
+    # would silently fall back to stale hardcoded IDs.
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "ap-southeast-1"
+
     try:
-        cfn = boto3.client("cloudformation")
+        cfn = boto3.client("cloudformation", region_name=region)
         for stack_name in stacks_to_check:
             try:
                 resp = cfn.describe_stacks(StackName=stack_name)
