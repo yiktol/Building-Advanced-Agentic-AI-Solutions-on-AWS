@@ -68,20 +68,9 @@ def _load_cfn_outputs() -> dict:
     except Exception:
         pass
 
-    # Hardcoded fallback
-    if not outputs:
-        outputs = {
-            "SharedMemoryId": "mladas_shared_memory-FnBIrUFMzJ",
-            "ToolSelectionEvaluatorId": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:evaluator/mladas_tool_selection-jYBteNHyI9",
-            "GatewayId": "mladas-tool-gateway-3tz53bxvi7",
-            "PolicyEngineId": "mladas_policy_engine-rnk8ps49yd",
-            "GuardrailId": "",
-            "GuardrailVersion": "",
-            "UserPoolId": "ap-southeast-1_E0sMjmTN0",
-            "UserPoolClientId": "330l8sbjpagntgjqtm2bcpau63",
-            "PolicyStoreId": "UaLcNnxRby5abt23mN5LCm",
-        }
-
+    # No hardcoded fallback: if detection fails, return empty so status badges
+    # honestly show services as unconfigured rather than pointing at deleted
+    # resources. Users can still set IDs via the Home page / env vars.
     return outputs
 
 

@@ -19,7 +19,16 @@ st.set_page_config(
 # --- Auto-detect CloudFormation Stack Outputs ---
 @st.cache_data(ttl=300)
 def get_cfn_outputs():
-    """Derive service configuration from infra-agentcore and module3 CloudFormation stack outputs."""
+    """Query CloudFormation for service configuration.
+
+    Returns (outputs, source) where source is:
+      - "live":  outputs read from deployed CloudFormation stacks
+      - "none":  no stacks found / query failed (outputs is empty)
+
+    No hardcoded fallback: if detection fails, the fields stay empty so the
+    problem is visible instead of masked by stale IDs pointing at deleted
+    resources. Users can still type IDs manually.
+    """
     stacks_to_check = [
         "mladas-agentcore-memory",
         "mladas-agentcore-evaluator",
@@ -32,8 +41,7 @@ def get_cfn_outputs():
     outputs = {}
 
     # Resolve region explicitly: on EC2 there is no default region configured,
-    # so boto3.client("cloudformation") would raise NoRegionError and the lookup
-    # would silently fall back to stale hardcoded IDs.
+    # so boto3.client("cloudformation") would raise NoRegionError.
     region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "ap-southeast-1"
 
     try:
@@ -49,23 +57,7 @@ def get_cfn_outputs():
     except Exception:
         pass
 
-    # Hardcoded fallback if CFN lookup returns empty
-    if not outputs:
-        outputs = {
-            "SharedMemoryId": "mladas_shared_memory-FnBIrUFMzJ",
-            "ToolSelectionEvaluatorId": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:evaluator/mladas_tool_selection-jYBteNHyI9",
-            "ComplianceEvaluatorId": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:evaluator/mladas_compliance_check-UsUxd02sK8",
-            "GatewayId": "mladas-tool-gateway-3tz53bxvi7",
-            "GatewayArn": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:gateway/mladas-tool-gateway-3tz53bxvi7",
-            "PolicyEngineId": "mladas_policy_engine-rnk8ps49yd",
-            "GuardrailId": "",
-            "GuardrailVersion": "",
-            "UserPoolId": "ap-southeast-1_E0sMjmTN0",
-            "UserPoolClientId": "330l8sbjpagntgjqtm2bcpau63",
-            "PolicyStoreId": "UaLcNnxRby5abt23mN5LCm",
-        }
-
-    return outputs
+    return outputs, ("live" if outputs else "none")
 
 # --- Custom CSS for modern styling ---
 st.markdown("""
@@ -167,11 +159,17 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
                 st.session_state.pop(_k, None)
             st.rerun()
 
-    cfn_outputs = get_cfn_outputs()
+    cfn_outputs, cfn_source = get_cfn_outputs()
     with dcol1:
-        if cfn_outputs:
-            detected = ", ".join(cfn_outputs.keys())
-            st.success(f"🔍 Auto-detected from CloudFormation stacks: {detected}")
+        if cfn_source == "live" and cfn_outputs:
+            detected = ", ".join(sorted(cfn_outputs.keys()))
+            st.success(f"🔍 Detected from live CloudFormation stacks: {detected}")
+        else:
+            st.warning(
+                "⚠️ No service stacks detected. Deploy `demos/infra-agentcore` and "
+                "`demos/module3-security` (or enter resource IDs manually below). "
+                "Modules fall back to local simulation until configured."
+            )
 
     # --- Model Selection ---
     st.markdown("**:material/smart_toy: Model Configuration**")
