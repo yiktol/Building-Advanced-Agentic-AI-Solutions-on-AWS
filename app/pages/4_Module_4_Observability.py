@@ -51,7 +51,7 @@ METRICS_NAMESPACE = os.environ.get("METRICS_NAMESPACE", "AgentMetrics")
 if part == "Part 1 — Metrics":
     part_header("Real-time metrics", "Every interaction emits latency, token, and tool metrics.")
 
-    diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module4-observability/diagrams/part1_tracing.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part1_tracing.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -90,19 +90,25 @@ if part == "Part 1 — Metrics":
             # Token usage bar
             st.progress(min(total_input / 10000, 1.0), text=f"Token budget: {total_input:,} / 10,000 (session limit example)")
 
-    if st.session_state.m4p1_agent is None:
-        st.session_state.m4p1_tool_calls = 0
+    # Thread-safe tool-call counter. Strands runs tools on a background thread
+    # that has no Streamlit ScriptRunContext, so the tools must NOT touch
+    # st.session_state (that raises "no attribute ..."). A plain list is shared
+    # by reference and safe to mutate from the worker thread.
+    if "m4p1_tool_counter" not in st.session_state:
+        st.session_state.m4p1_tool_counter = [0]
+    tool_counter = st.session_state.m4p1_tool_counter
 
+    if st.session_state.m4p1_agent is None:
         @tool
         def search_products(query: str) -> str:
             """Search products. Args: query: search term"""
-            st.session_state.m4p1_tool_calls += 1
+            tool_counter[0] += 1
             return "TechMart Pro 15 ($799, i7/16GB), Air ($599, i5/8GB), Hub ($149, Wi-Fi 6), Titan ($1299, RTX 4060)"
 
         @tool
         def check_inventory(product_name: str) -> str:
             """Check product inventory. Args: product_name: product to check"""
-            st.session_state.m4p1_tool_calls += 1
+            tool_counter[0] += 1
             stock = {"pro": "In stock (23 units)", "air": "In stock (45 units)", "hub": "Low stock (3 units)", "titan": "In stock (12 units)"}
             for k, v in stock.items():
                 if k in product_name.lower():
@@ -113,9 +119,6 @@ if part == "Part 1 — Metrics":
             "You are a TechMart sales agent. Use search_products to find products and check_inventory to verify availability. Be helpful and concise.",
             tools=[search_products, check_inventory],
         )
-
-    if "m4p1_tool_calls" not in st.session_state:
-        st.session_state.m4p1_tool_calls = 0
 
     for idx, msg in enumerate(st.session_state.m4p1_msgs):
         with st.chat_message(msg["role"]):
@@ -138,7 +141,7 @@ if part == "Part 1 — Metrics":
         selected = st.pills("Try:", suggestions, key="m4p1_pills")
         if selected:
             st.session_state.m4p1_msgs.append({"role": "user", "content": selected})
-            st.session_state.m4p1_tool_calls = 0
+            tool_counter[0] = 0
             with st.chat_message("user"):
                 st.markdown(selected)
             with st.chat_message("assistant"):
@@ -147,7 +150,7 @@ if part == "Part 1 — Metrics":
                     resp, metrics = chat_response_with_metrics(st.session_state.m4p1_agent, selected)
                     wall_time = (_t.time() - _s) * 1000
                     metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
-                    metrics["toolCalls"] = st.session_state.m4p1_tool_calls
+                    metrics["toolCalls"] = tool_counter[0]
                 st.markdown(resp)
             with st.container(border=True):
                 mc1, mc2, mc3, mc4, mc5 = st.columns(5)
@@ -162,7 +165,7 @@ if part == "Part 1 — Metrics":
 
     if prompt := st.chat_input("Ask about products...", submit_mode="disable"):
         st.session_state.m4p1_msgs.append({"role": "user", "content": prompt})
-        st.session_state.m4p1_tool_calls = 0
+        tool_counter[0] = 0
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
@@ -171,7 +174,7 @@ if part == "Part 1 — Metrics":
                 resp, metrics = chat_response_with_metrics(st.session_state.m4p1_agent, prompt)
                 wall_time = (_t.time() - _s) * 1000
                 metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
-                metrics["toolCalls"] = st.session_state.m4p1_tool_calls
+                metrics["toolCalls"] = tool_counter[0]
             st.markdown(resp)
         with st.container(border=True):
             mc1, mc2, mc3, mc4, mc5 = st.columns(5)

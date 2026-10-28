@@ -47,7 +47,7 @@ with st.sidebar:
 if part == "Part 1 — Context Growth":
     part_header("Context as a finite resource", "Watch token count grow with each exchange.")
 
-    diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module2-context-engineering/diagrams/part1_context_exhaustion.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part1_context_exhaustion.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -140,7 +140,7 @@ elif part == "Part 2 — Prompt caching":
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module2-context-engineering/diagrams/part2_prompt_caching.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part2_prompt_caching.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
@@ -151,7 +151,7 @@ from strands import Agent
 from strands.models import BedrockModel
 
 # Enable prompt caching on the model
-model = BedrockModel(model_id="apac.anthropic.claude-sonnet-4-20250514-v1:0", region_name="ap-southeast-1", cache_tools="default")
+model = BedrockModel(model_id="global.anthropic.claude-haiku-5-5", region_name="ap-southeast-1", cache_tools="default")
 
 # Large system prompt with a cache point marker
 system_prompt = [
@@ -277,7 +277,7 @@ elif part == "Part 3 — Conv. Managers":
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module2-context-engineering/diagrams/part3_conversation_managers.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part3_conversation_managers.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
@@ -364,7 +364,7 @@ elif part == "Part 4 — Isolation":
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module2-context-engineering/diagrams/part4_context_isolation.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part4_context_isolation.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
@@ -457,7 +457,7 @@ elif part == "Part 5 — Tool Design":
     with st.expander("📐 Architecture & Tool Comparison", expanded=False):
         tab_diagram, tab_comparison = st.tabs(["Architecture Diagram", "Tool Output Comparison"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module2-context-engineering/diagrams/part5_tool_design.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part5_tool_design.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:

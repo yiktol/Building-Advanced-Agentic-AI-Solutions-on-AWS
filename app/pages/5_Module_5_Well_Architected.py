@@ -89,7 +89,7 @@ if part == "Part 1 — E-Commerce":
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module5-well-architected/diagrams/part1_ecommerce.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part1_ecommerce.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
@@ -220,7 +220,7 @@ elif part == "Part 2 — Reliability":
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module5-well-architected/diagrams/part4_reliability.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part4_reliability.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
@@ -335,7 +335,7 @@ elif part == "Part 3 — Cost optimization":
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module5-well-architected/diagrams/part5_cost_optimization.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part5_cost_optimization.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:

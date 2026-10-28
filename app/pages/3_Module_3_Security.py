@@ -223,7 +223,7 @@ elif part == "Part 2 — Cedar Policies":
     with st.expander("📐 Architecture & Cedar Policies", expanded=False):
         tab_diagram, tab_policies, tab_flow = st.tabs(["Architecture Diagram", "Cedar Policies", "Authorization Flow"])
         with tab_diagram:
-            diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module3-security/diagrams/part2_cedar_policies.png"
+            diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part2_cedar_policies.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
@@ -522,7 +522,7 @@ Was the correct Cedar policy applied? Was the ALLOW/DENY decision correct given 
 elif part == "Part 3 — Cognito Auth":
     part_header("Cognito + JWT + Cedar", "Real OAuth 2.0 authentication with JWT claims driving authorization.")
 
-    diagram_path = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/demos/module3-security/diagrams/part3_cognito.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part3_cognito.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
