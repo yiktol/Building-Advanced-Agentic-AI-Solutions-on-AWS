@@ -45,7 +45,7 @@ if part == "Part 1 — Single Agent":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -179,7 +179,7 @@ elif part == "Part 2 — Orchestrator":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -348,7 +348,7 @@ elif part == "Part 3 — Agent-as-Tool":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -449,7 +449,7 @@ elif part == "Part 4 — Shared memory":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:

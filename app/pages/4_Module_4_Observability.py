@@ -51,7 +51,7 @@ if part == "Part 1 — Metrics":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -206,7 +206,7 @@ elif part == "Part 2 — Loop detection":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -316,7 +316,7 @@ elif part == "Part 3 — Evaluation":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:

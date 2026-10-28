@@ -77,7 +77,7 @@ if part == "Part 1 — Unprotected":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -231,7 +231,7 @@ elif part == "Part 2 — Cedar Policies":
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part2_cedar_policies.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.caption("Diagram not found.")
         with tab_about:
@@ -543,7 +543,7 @@ elif part == "Part 3 — Cognito Auth":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:

@@ -47,7 +47,7 @@ if part == "Part 1 — Context Growth":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -151,7 +151,7 @@ elif part == "Part 2 — Prompt caching":
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part2_prompt_caching.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -298,7 +298,7 @@ elif part == "Part 3 — Conv. Managers":
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part3_conversation_managers.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -399,7 +399,7 @@ elif part == "Part 4 — Isolation":
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part4_context_isolation.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -503,7 +503,7 @@ elif part == "Part 5 — Tool Design":
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part5_tool_design.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path)
+                st.image(diagram_path, width=700)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
