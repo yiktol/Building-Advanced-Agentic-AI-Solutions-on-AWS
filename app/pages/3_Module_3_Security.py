@@ -79,8 +79,9 @@ if part == "Part 1 — Unprotected":
         """)
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part1_unprotected.png")
+    suggestions = ["Process $5000 refund ORD-5006", "Show customer CUST-1005"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -92,6 +93,10 @@ A baseline agent with no identity checks, authorization, or audit trail — it w
 
 **Try it:** Send the exploit prompts to see why controls are needed, then compare against Parts 2 and 3 which add Cedar authorization and real identity.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     if "m3p1_agent" not in st.session_state:
         st.session_state.m3p1_agent = None
@@ -191,7 +196,6 @@ Identify all security vulnerabilities demonstrated in this interaction."""
 
         # Suggestion chips
         if not st.session_state.m3p1_msgs:
-            suggestions = ["Process $5000 refund ORD-5006", "Show customer CUST-1005"]
             selected = st.pills("Try:", suggestions, key="m3p1_pills")
             if selected:
                 st.session_state.m3p1_msgs.append({"role": "user", "content": selected})
@@ -230,8 +234,9 @@ Identify all security vulnerabilities demonstrated in this interaction."""
 elif part == "Part 2 — Cedar Policies":
     part_header("AgentCore Policy authorization", "Same agent, now protected by Cedar policies via AgentCore Policy Engine.")
 
+    suggestions = ["Process $300 refund on ORD-5001, reason: customer dissatisfied", "Process $700 refund on ORD-5002, reason: defective product"]
     with st.expander("📐 Architecture & Cedar Policies", expanded=False):
-        tab_diagram, tab_about, tab_policies, tab_flow = st.tabs(["📐 Diagram", "ℹ️ About", "Cedar Policies", "Authorization Flow"])
+        tab_diagram, tab_about, tab_prompts, tab_policies, tab_flow = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "Cedar Policies", "Authorization Flow"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part2_cedar_policies.png")
             if os.path.exists(diagram_path):
@@ -244,6 +249,10 @@ The same agent is now fronted by the AgentCore Policy Engine (Amazon Verified Pe
 
 **Try it:** Log in as different users and request refunds above and below their limit to watch ALLOW vs DENY decisions — the Cedar Policies and Authorization Flow tabs show the rules behind each outcome.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_policies:
             st.markdown("**Deployed Cedar Policies (AgentCore Policy Engine)**")
             st.code("""# Policy 1: Finance admin — unlimited refunds
@@ -499,7 +508,6 @@ Was the correct Cedar policy applied? Was the ALLOW/DENY decision correct given 
 
         # Suggestion chips
         if not st.session_state.m3p2_msgs:
-            suggestions = ["Process $300 refund on ORD-5001, reason: customer dissatisfied", "Process $700 refund on ORD-5002, reason: defective product"]
             selected = st.pills("Try:", suggestions, key="m3p2_pills")
             if selected:
                 st.session_state.m3p2_msgs.append({"role": "user", "content": selected})
@@ -539,8 +547,9 @@ elif part == "Part 3 — Cognito Auth":
     part_header("Cognito + JWT + Cedar", "Real OAuth 2.0 authentication with JWT claims driving authorization.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part3_cognito.png")
+    suggestions = ["Process $300 refund on ORD-5001, reason: defective", "Process $700 refund on ORD-5002, reason: wrong item"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -552,6 +561,10 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
 
 **Try it:** Log in, inspect the JWT claims, then switch users to watch the ALLOW/DENY decisions change with identity.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     st.info("Authenticate with Cognito to get a JWT token, then chat with the policy-protected agent using your real identity.")
 
@@ -668,7 +681,6 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
                     st.markdown(msg["content"])
 
             if not st.session_state.m3p3_msgs:
-                suggestions = [f"Process $300 refund on ORD-5001, reason: defective", f"Process $700 refund on ORD-5002, reason: wrong item"]
                 selected_pill = st.pills("Try:", suggestions, key="m3p3_pills")
                 if selected_pill:
                     st.session_state.m3p3_msgs.append({"role": "user", "content": selected_pill})

@@ -52,8 +52,9 @@ if part == "Part 1 — Metrics":
     part_header("Real-time metrics", "Every interaction emits latency, token, and tool metrics.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part1_tracing.png")
+    suggestions = ["Search for TechMart Hub", "What laptops under $800?", "Is the Titan in stock?"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -65,6 +66,10 @@ Every interaction emits latency, token, and tool metrics and records a Session �
 
 **Try it:** Run a few queries and open the span view to see per-operation timing feeding the dashboard.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     if "m4p1_agent" not in st.session_state:
         st.session_state.m4p1_agent = None
@@ -147,7 +152,6 @@ Every interaction emits latency, token, and tool metrics and records a Session �
 
     # Suggestion chips
     if not st.session_state.m4p1_msgs:
-        suggestions = ["Search for TechMart Hub", "What laptops under $800?", "Is the Titan in stock?"]
         selected = st.pills("Try:", suggestions, key="m4p1_pills")
         if selected:
             st.session_state.m4p1_msgs.append({"role": "user", "content": selected})
@@ -203,8 +207,9 @@ elif part == "Part 2 — Loop detection":
     part_header("Loop detection", "Circuit breaker activates when agent makes too many repeated tool calls.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part3_loop_detection.png")
+    suggestions = ["Find all customer records and process each one"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -216,6 +221,10 @@ A circuit breaker trips when the agent makes too many repeated tool calls, stopp
 
 **Try it:** Trigger the "loopy" mode to watch tool calls escalate and the breaker activate.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     if "m4p2_agent" not in st.session_state:
         st.session_state.m4p2_agent = None
@@ -274,7 +283,6 @@ A circuit breaker trips when the agent makes too many repeated tool calls, stopp
 
     # Suggestion chips
     if not st.session_state.m4p2_msgs:
-        suggestions = ["Find all customer records and process each one"]
         selected = st.pills("Try:", suggestions, key="m4p2_pills")
         if selected:
             st.session_state.m4p2_msgs.append({"role": "user", "content": selected})
@@ -305,8 +313,13 @@ elif part == "Part 3 — Evaluation":
     part_header("LLM-as-judge evaluation", "Automated quality scoring of agent responses.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part4_evaluation.png")
+    suggestions = [
+        "My TechMart Hub keeps dropping Wi-Fi. Firmware v2.1.3.",
+        "What's the best laptop for video editing under $800?",
+        "Can I return an item after 45 days?",
+    ]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -318,6 +331,10 @@ An automated judge scores responses on correctness, helpfulness, and tool select
 
 **Try it:** Run the automated test suite to see per-evaluator scores and the pass/fail quality threshold.
 """)
+        with tab_prompts:
+            st.caption("Example queries to evaluate — type one into the box above.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     from agentcore_utils import AgentCoreEvaluator, get_agentcore_status
     status = get_agentcore_status()

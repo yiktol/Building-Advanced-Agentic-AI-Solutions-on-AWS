@@ -86,8 +86,9 @@ with st.sidebar:
 if part == "Part 1 — E-Commerce":
     part_header("Multi-agent e-commerce", "Full orchestrated system with 4 specialist agents and operational metrics.")
 
+    suggestions = ["Laptops under $800?", "Hub dropping Wi-Fi v2.1.3", "Express shipping cost?"]
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
+        tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part1_ecommerce.png")
             if os.path.exists(diagram_path):
@@ -100,6 +101,10 @@ The capstone system: an orchestrator routing to four specialists (billing, tech,
 
 **Try it:** Run the sample queries to see the full orchestrated system respond end to end.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_code:
             st.code("""
 from strands import Agent, tool
@@ -191,7 +196,6 @@ orchestrator = Agent(
                 mc3.metric("⏱️ Latency", f"{m.get('latencyMs', 0)}ms")
 
     if not st.session_state.m5p1_msgs:
-        suggestions = ["Laptops under $800?", "Hub dropping Wi-Fi v2.1.3", "Express shipping cost?"]
         selected = st.pills("Try:", suggestions, key="m5p1_pills")
         if selected:
             st.session_state.m5p1_msgs.append({"role": "user", "content": selected})
@@ -223,8 +227,9 @@ orchestrator = Agent(
 elif part == "Part 2 — Reliability":
     part_header("Reliability — Fault tolerance", "Break agents, watch graceful degradation with fallback and retry.")
 
+    suggestions = ["What laptops available?", "Refund on last order?", "Hub disconnecting from Wi-Fi"]
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
+        tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part4_reliability.png")
             if os.path.exists(diagram_path):
@@ -237,6 +242,10 @@ Per-specialist circuit breakers isolate failures and fallback agents keep the sy
 
 **Try it:** Use `break product`, ask a product question to see the fallback respond, then `fix product` to recover — `status` shows each breaker's state.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_code:
             st.code("""
 # Reliability pattern: retry + fallback
@@ -312,7 +321,6 @@ def call_specialist_with_retry(specialist, query, max_retries=1):
             mc2.metric("Status", "⚠️ Degraded" if degraded else "✅ Normal")
 
     if not st.session_state.m5p2_msgs:
-        suggestions = ["What laptops available?", "Refund on last order?", "Hub disconnecting from Wi-Fi"]
         selected = st.pills("Try:", suggestions, key="m5p2_pills")
         if selected:
             st.session_state.m5p2_msgs.append({"role": "user", "content": selected})
@@ -344,8 +352,9 @@ def call_specialist_with_retry(specialist, query, max_retries=1):
 elif part == "Part 3 — Cost optimization":
     part_header("Cost optimization", "Smart model tiering: simple queries → economy model, complex → premium.")
 
+    suggestions = ["Hi", "What's the Hub price?", "Compare Pro 15 and Titan for video editing"]
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
+        tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part5_cost_optimization.png")
             if os.path.exists(diagram_path):
@@ -358,6 +367,10 @@ Smart model tiering routes simple queries to an economy model and complex ones t
 
 **Try it:** Send a simple then a complex query and check `cost` / `budget` to see the tier split and the savings.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_code:
             st.code("""
 # Cost optimization: route by complexity
@@ -410,7 +423,6 @@ agent = Agent(model=BedrockModel(model_id=model_id), ...)
             mc4.metric("Latency", f"{c.get('latencyMs', 0)}ms")
 
     if not st.session_state.m5p3_msgs:
-        suggestions = ["Hi", "What's the Hub price?", "Compare Pro 15 and Titan for video editing"]
         selected = st.pills("Try:", suggestions, key="m5p3_pills")
         if selected:
             _do_cost_query(selected, tiering)

@@ -48,8 +48,9 @@ if part == "Part 1 — Context Growth":
     part_header("Context as a finite resource", "Watch token count grow with each exchange.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part1_context_exhaustion.png")
+    suggestions = ["Plan retreat for 50 in Bali", "Budget is $150K, break it down", "12 vegetarians, 3 mobility issues"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -61,6 +62,10 @@ Context is a finite resource. As a long conversation accumulates, token counts r
 
 **Try it:** Build up the multi-turn retreat-planning prompts and watch the token counter and context-window progress bar climb with each exchange.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     if "m2p1_agent" not in st.session_state:
         st.session_state.m2p1_agent = None
@@ -107,7 +112,6 @@ Context is a finite resource. As a long conversation accumulates, token counts r
 
     # Suggestion chips
     if not st.session_state.m2p1_msgs:
-        suggestions = ["Plan retreat for 50 in Bali", "Budget is $150K, break it down", "12 vegetarians, 3 mobility issues"]
         selected = st.pills("Try:", suggestions, key="m2p1_pills")
         if selected:
             st.session_state.m2p1_msgs.append({"role": "user", "content": selected})
@@ -147,8 +151,9 @@ Context is a finite resource. As a long conversation accumulates, token counts r
 elif part == "Part 2 — Prompt caching":
     part_header("Prompt caching", "Cache static system prompts to reduce latency on repeat calls.")
 
+    suggestions = ["Revenue breakdown by segment", "Top 3 risks next year", "Growth vs competitors"]
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
+        tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part2_prompt_caching.png")
             if os.path.exists(diagram_path):
@@ -161,6 +166,10 @@ A cache point marker lets Bedrock store a large static system-prompt prefix once
 
 **Try it:** Run a prompt twice and check `cacheReadInputTokens` / `cacheWriteInputTokens` in the usage metrics — a cache HIT shows reads with zero writes.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_code:
             st.code("""
 from strands import Agent
@@ -227,7 +236,6 @@ print(usage["cacheWriteInputTokens"])  # 0 on cache hit
 
     # Suggestion chips
     if not st.session_state.m2p2_msgs:
-        suggestions = ["Revenue breakdown by segment", "Top 3 risks next year", "Growth vs competitors"]
         selected = st.pills("Try:", suggestions, key="m2p2_pills")
         if selected:
             st.session_state.m2p2_msgs.append({"role": "user", "content": selected})
@@ -290,8 +298,9 @@ print(usage["cacheWriteInputTokens"])  # 0 on cache hit
 elif part == "Part 3 — Conv. Managers":
     part_header("Conversation managers", "SummarizingConversationManager compresses older context automatically.")
 
+    suggestions = ["Recommend a database for catalog", "Design the order service"]
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
+        tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part3_conversation_managers.png")
             if os.path.exists(diagram_path):
@@ -304,6 +313,10 @@ elif part == "Part 3 — Conv. Managers":
 
 **Try it:** Run the long architecture-design thread, then type `recall` to ask it to list earlier decisions and confirm the summary retained them.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_code:
             st.code("""
 from strands import Agent
@@ -353,7 +366,6 @@ result = agent("List all key architectural decisions we've made so far")
 
     # Suggestion chips
     if not st.session_state.m2p3_msgs:
-        suggestions = ["Recommend a database for catalog", "Design the order service"]
         selected = st.pills("Try:", suggestions, key="m2p3_pills")
         if selected:
             st.session_state.m2p3_msgs.append({"role": "user", "content": selected})
@@ -383,8 +395,13 @@ result = agent("List all key architectural decisions we've made so far")
 elif part == "Part 4 — Isolation":
     part_header("Context isolation", "Specialized agents each get only relevant context — no bloat.")
 
+    suggestions = [
+        "Evaluate viability of a 50MW solar farm in Vietnam for 2025-2027.",
+        "Assess the market for electric delivery vans in Southeast Asia.",
+        "Evaluate launching a cloud data-analytics product for SMBs.",
+    ]
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
+        tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part4_context_isolation.png")
             if os.path.exists(diagram_path):
@@ -397,6 +414,10 @@ Specialized sub-agents (research → analysis → writing) each receive only the
 
 **Try it:** Run the renewable-energy pipeline and note how little each sub-agent sees compared with one agent holding everything.
 """)
+        with tab_prompts:
+            st.caption("Example research tasks — type one into the Research task box.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_code:
             st.code("""
 from strands import Agent
@@ -482,8 +503,9 @@ elif part == "Part 5 — Tool Design":
         },
     }
 
+    suggestions = ["Look up customer CUST-44821", "Summarize their account status", "What should we proactively offer them?"]
     with st.expander("📐 Architecture & Tool Comparison", expanded=False):
-        tab_diagram, tab_about, tab_comparison = st.tabs(["📐 Diagram", "ℹ️ About", "Tool Output Comparison"])
+        tab_diagram, tab_about, tab_prompts, tab_comparison = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "Tool Output Comparison"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part5_tool_design.png")
             if os.path.exists(diagram_path):
@@ -496,6 +518,10 @@ Tool output format directly drives token cost. The same customer record can be r
 
 **Try it:** Switch the active tool mode and re-run a lookup to watch the estimated and actual token counts change for identical data.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
         with tab_comparison:
             cols = st.columns(3)
             for i, (mode_name, info) in enumerate(TOOL_RESPONSES.items()):
@@ -546,7 +572,6 @@ Tool output format directly drives token cost. The same customer record can be r
 
     # Suggestion chips
     if not st.session_state.m2p5_msgs:
-        suggestions = ["Look up customer CUST-44821", "Summarize their account status", "What should we proactively offer them?"]
         selected = st.pills("Try:", suggestions, key="m2p5_pills")
         if selected:
             st.session_state.m2p5_msgs.append({"role": "user", "content": selected})

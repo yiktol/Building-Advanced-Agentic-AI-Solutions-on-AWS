@@ -49,8 +49,9 @@ if part == "Part 1 — Single Agent":
     part_header("Single agent (cognitive load)", "One agent handles billing, tech support, and product queries.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part1_single_agent.png")
+    suggestions = ["Charged $9.99, cancelled last week", "Hub disconnecting, firmware v2.1.3", "Laptop under $800 for editing"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -62,6 +63,10 @@ One agent handles billing, tech support, and product questions at once. As the c
 
 **Try it:** Run the 5-query sequence (billing → Wi-Fi → laptop → refund → compatibility) and watch the Judge scores degrade as cognitive load builds.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     if "m1p1_agent" not in st.session_state:
         st.session_state.m1p1_agent = None
@@ -116,11 +121,6 @@ Assess whether the agent showed signs of cognitive overload from handling multip
         result = judge_agent(evaluation_prompt)
         return str(result)
 
-    with st.expander("💡 Suggested Prompts", expanded=False):
-        st.caption("• I was charged $9.99 but cancelled. Order TM-78432.")
-        st.caption("• My TechMart Hub keeps disconnecting. Firmware v2.1.3.")
-        st.caption("• I need a laptop under $800 for video editing.")
-
     if st.session_state.m1p1_agent is None:
         st.session_state.m1p1_agent = create_agent(
             """You are a customer service agent for TechMart handling ALL inquiries:
@@ -142,7 +142,6 @@ Always verify identity before account changes."""
 
     # Suggestion chips
     if not st.session_state.m1p1_msgs:
-        suggestions = ["Charged $9.99, cancelled last week", "Hub disconnecting, firmware v2.1.3", "Laptop under $800 for editing"]
         selected = st.pills("Try:", suggestions, key="m1p1_pills")
         if selected:
             st.session_state.m1p1_msgs.append({"role": "user", "content": selected})
@@ -184,8 +183,9 @@ elif part == "Part 2 — Orchestrator":
     part_header("Orchestrator pattern", "Centralized routing to specialist agents.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part2_orchestrator.png")
+    suggestions = ["Refund on order TM-78432", "Hub Wi-Fi keeps dropping", "Recommend a laptop"]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -197,6 +197,10 @@ A central orchestrator routes each query to the right specialist (📋 billing, 
 
 **Try it:** Run the same prompts as Part 1 and compare the Judge scores against the single-agent baseline.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     if "m1p2_orch" not in st.session_state:
         st.session_state.m1p2_orch = None
@@ -308,7 +312,6 @@ NEVER respond without first calling a tool. If you respond without calling a too
 
     # Suggestion chips
     if not st.session_state.m1p2_msgs:
-        suggestions = ["Refund on order TM-78432", "Hub Wi-Fi keeps dropping", "Recommend a laptop"]
         selected = st.pills("Try:", suggestions, key="m1p2_pills")
         if selected:
             st.session_state.m1p2_msgs.append({"role": "user", "content": selected})
@@ -351,7 +354,7 @@ elif part == "Part 3 — Agent-as-Tool":
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part3_agent_as_tool.png")
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -363,6 +366,14 @@ A Sales agent and a Support agent reuse the *same* underlying tools (`product_lo
 
 **Try it:** Switch between the Sales and Support consumer agents and run each prompt set to see the shared tools reused.
 """)
+        with tab_prompts:
+            st.caption("Sample prompts by consumer agent — click the matching pill in the chat below to run them.")
+            st.markdown("**Sales Agent**")
+            for _p in ["Look up TechMart Hub", "Hub + Camera compatible?"]:
+                st.markdown("- " + _p)
+            st.markdown("**Support Agent**")
+            for _p in ["Order TM-78432 status", "Hub + sensors compatible?"]:
+                st.markdown("- " + _p)
 
     if "m1p3_agent" not in st.session_state:
         st.session_state.m1p3_agent = None
@@ -439,8 +450,12 @@ elif part == "Part 4 — Shared memory":
     part_header("Shared memory", "Agents collaborate via shared memory — like AgentCore Memory.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part4_shared_memory.png")
+    suggestions = [
+        "My TechMart Hub firmware v2.1.3 keeps dropping Wi-Fi every few minutes. I also added 2 motion sensors yesterday and they aren't appearing in the app.",
+        "My smart cameras keep going offline at night. I have 3 cameras connected through my TechMart Hub.",
+    ]
     with st.expander("📐 Architecture Diagram", expanded=False):
-        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
@@ -452,6 +467,10 @@ Three agents (Diagnose → Resolve → Follow-up) collaborate by reading and wri
 
 **Try it:** Run the workflow and watch the 💾 (write) and 📖 (read) steps; the final audit trail shows distinct `actor_id`s — mirroring AgentCore Memory.
 """)
+        with tab_prompts:
+            st.caption("Example issue descriptions — paste one into the box below.")
+            for _p in suggestions:
+                st.markdown("- " + _p)
 
     from agentcore_utils import AgentCoreMemory, get_agentcore_status
     status = get_agentcore_status()
