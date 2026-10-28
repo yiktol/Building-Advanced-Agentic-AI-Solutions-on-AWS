@@ -87,13 +87,19 @@ if part == "Part 1 — E-Commerce":
     part_header("Multi-agent e-commerce", "Full orchestrated system with 4 specialist agents and operational metrics.")
 
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
+        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part1_ecommerce.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found.")
+        with tab_about:
+            st.markdown("""
+The capstone system: an orchestrator routing to four specialists (billing, tech, product, shipping) with cross-cutting concerns — circuit breakers, health checks, and token budgets — wired in.
+
+**Try it:** Run the sample queries to see the full orchestrated system respond end to end.
+""")
         with tab_code:
             st.code("""
 from strands import Agent, tool
@@ -218,13 +224,19 @@ elif part == "Part 2 — Reliability":
     part_header("Reliability — Fault tolerance", "Break agents, watch graceful degradation with fallback and retry.")
 
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
+        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part4_reliability.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found.")
+        with tab_about:
+            st.markdown("""
+Per-specialist circuit breakers isolate failures and fallback agents keep the system answering when one specialist breaks, so a single fault doesn't take the whole system down.
+
+**Try it:** Use `break product`, ask a product question to see the fallback respond, then `fix product` to recover — `status` shows each breaker's state.
+""")
         with tab_code:
             st.code("""
 # Reliability pattern: retry + fallback
@@ -333,13 +345,19 @@ elif part == "Part 3 — Cost optimization":
     part_header("Cost optimization", "Smart model tiering: simple queries → economy model, complex → premium.")
 
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
+        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part5_cost_optimization.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found.")
+        with tab_about:
+            st.markdown("""
+Smart model tiering routes simple queries to an economy model and complex ones to a premium model, under a token budget, to prevent cost surprises.
+
+**Try it:** Send a simple then a complex query and check `cost` / `budget` to see the tier split and the savings.
+""")
         with tab_code:
             st.code("""
 # Cost optimization: route by complexity

@@ -49,9 +49,19 @@ if part == "Part 1 — Single Agent":
     part_header("Single agent (cognitive load)", "One agent handles billing, tech support, and product queries.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part1_single_agent.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+One agent handles billing, tech support, and product questions at once. As the conversation spans domains it mixes up procedures and can't go deep on any topic — context fills with cross-domain history and quality drops.
+
+**Try it:** Run the 5-query sequence (billing → Wi-Fi → laptop → refund → compatibility) and watch the Judge scores degrade as cognitive load builds.
+""")
 
     if "m1p1_agent" not in st.session_state:
         st.session_state.m1p1_agent = None
@@ -174,9 +184,19 @@ elif part == "Part 2 — Orchestrator":
     part_header("Orchestrator pattern", "Centralized routing to specialist agents.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part2_orchestrator.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+A central orchestrator routes each query to the right specialist (📋 billing, 🔧 tech, 🛍️ product). Specialists give deeper, more accurate answers without being polluted by unrelated context, and a compound query gets decomposed across specialists.
+
+**Try it:** Run the same prompts as Part 1 and compare the Judge scores against the single-agent baseline.
+""")
 
     if "m1p2_orch" not in st.session_state:
         st.session_state.m1p2_orch = None
@@ -330,9 +350,19 @@ elif part == "Part 3 — Agent-as-Tool":
     part_header("Agent-as-tool (MCP pattern)", "Shared tools reused by different agents.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part3_agent_as_tool.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+A Sales agent and a Support agent reuse the *same* underlying tools (`product_lookup`, `compatibility_check`, `order_status`) through clear input/output contracts. The tool implementation can change without touching the consumer agents — this is how AgentCore Gateway exposes shared tools.
+
+**Try it:** Switch between the Sales and Support consumer agents and run each prompt set to see the shared tools reused.
+""")
 
     if "m1p3_agent" not in st.session_state:
         st.session_state.m1p3_agent = None
@@ -409,9 +439,19 @@ elif part == "Part 4 — Shared memory":
     part_header("Shared memory", "Agents collaborate via shared memory — like AgentCore Memory.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part4_shared_memory.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+Three agents (Diagnose → Resolve → Follow-up) collaborate by reading and writing a shared memory instead of passing full transcripts. The Resolution agent never saw the original message, yet picks up where Diagnosis left off.
+
+**Try it:** Run the workflow and watch the 💾 (write) and 📖 (read) steps; the final audit trail shows distinct `actor_id`s — mirroring AgentCore Memory.
+""")
 
     from agentcore_utils import AgentCoreMemory, get_agentcore_status
     status = get_agentcore_status()

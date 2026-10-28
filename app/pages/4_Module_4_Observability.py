@@ -52,9 +52,19 @@ if part == "Part 1 — Metrics":
     part_header("Real-time metrics", "Every interaction emits latency, token, and tool metrics.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part1_tracing.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+Every interaction emits latency, token, and tool metrics and records a Session → Trace → Span hierarchy to CloudWatch, giving per-operation visibility into what the agent did.
+
+**Try it:** Run a few queries and open the span view to see per-operation timing feeding the dashboard.
+""")
 
     if "m4p1_agent" not in st.session_state:
         st.session_state.m4p1_agent = None
@@ -193,9 +203,19 @@ elif part == "Part 2 — Loop detection":
     part_header("Loop detection", "Circuit breaker activates when agent makes too many repeated tool calls.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part3_loop_detection.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+A circuit breaker trips when the agent makes too many repeated tool calls, stopping runaway loops and firing a CloudWatch alarm — critical safety for autonomous agents.
+
+**Try it:** Trigger the "loopy" mode to watch tool calls escalate and the breaker activate.
+""")
 
     if "m4p2_agent" not in st.session_state:
         st.session_state.m4p2_agent = None
@@ -285,9 +305,19 @@ elif part == "Part 3 — Evaluation":
     part_header("LLM-as-judge evaluation", "Automated quality scoring of agent responses.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part4_evaluation.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+An automated judge scores responses on correctness, helpfulness, and tool selection (0.0–1.0), publishing scores to CloudWatch for continuous quality tracking and regression alerts.
+
+**Try it:** Run the automated test suite to see per-evaluator scores and the pass/fail quality threshold.
+""")
 
     from agentcore_utils import AgentCoreEvaluator, get_agentcore_status
     status = get_agentcore_status()

@@ -79,9 +79,19 @@ if part == "Part 1 — Unprotected":
         """)
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part1_unprotected.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+A baseline agent with no identity checks, authorization, or audit trail — it will process refunds, read other customers' data, and change records on request. This is the insecure starting point the later parts harden.
+
+**Try it:** Send the exploit prompts to see why controls are needed, then compare against Parts 2 and 3 which add Cedar authorization and real identity.
+""")
 
     if "m3p1_agent" not in st.session_state:
         st.session_state.m3p1_agent = None
@@ -221,13 +231,19 @@ elif part == "Part 2 — Cedar Policies":
     part_header("AgentCore Policy authorization", "Same agent, now protected by Cedar policies via AgentCore Policy Engine.")
 
     with st.expander("📐 Architecture & Cedar Policies", expanded=False):
-        tab_diagram, tab_policies, tab_flow = st.tabs(["Architecture Diagram", "Cedar Policies", "Authorization Flow"])
+        tab_diagram, tab_about, tab_policies, tab_flow = st.tabs(["📐 Diagram", "ℹ️ About", "Cedar Policies", "Authorization Flow"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part2_cedar_policies.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found.")
+        with tab_about:
+            st.markdown("""
+The same agent is now fronted by the AgentCore Policy Engine (Amazon Verified Permissions). Cedar policies permit or deny each tool call based on principal tags (department, role) and request context such as a refund amount.
+
+**Try it:** Log in as different users and request refunds above and below their limit to watch ALLOW vs DENY decisions — the Cedar Policies and Authorization Flow tabs show the rules behind each outcome.
+""")
         with tab_policies:
             st.markdown("**Deployed Cedar Policies (AgentCore Policy Engine)**")
             st.code("""# Policy 1: Finance admin — unlimited refunds
@@ -523,9 +539,19 @@ elif part == "Part 3 — Cognito Auth":
     part_header("Cognito + JWT + Cedar", "Real OAuth 2.0 authentication with JWT claims driving authorization.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part3_cognito.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the same Cedar policies, so authorization is now tied to real identity rather than a hard-coded user.
+
+**Try it:** Log in, inspect the JWT claims, then switch users to watch the ALLOW/DENY decisions change with identity.
+""")
 
     st.info("Authenticate with Cognito to get a JWT token, then chat with the policy-protected agent using your real identity.")
 

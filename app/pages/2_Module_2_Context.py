@@ -48,9 +48,19 @@ if part == "Part 1 — Context Growth":
     part_header("Context as a finite resource", "Watch token count grow with each exchange.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part1_context_exhaustion.png")
-    if os.path.exists(diagram_path):
-        with st.expander("📐 Architecture Diagram", expanded=False):
-            st.image(diagram_path)
+    with st.expander("📐 Architecture Diagram", expanded=False):
+        tab_diagram, tab_about = st.tabs(["📐 Diagram", "ℹ️ About"])
+        with tab_diagram:
+            if os.path.exists(diagram_path):
+                st.image(diagram_path)
+            else:
+                st.info("Diagram not available.")
+        with tab_about:
+            st.markdown("""
+Context is a finite resource. As a long conversation accumulates, token counts rise, latency grows, and later answers lose details from early turns.
+
+**Try it:** Build up the multi-turn retreat-planning prompts and watch the token counter and context-window progress bar climb with each exchange.
+""")
 
     if "m2p1_agent" not in st.session_state:
         st.session_state.m2p1_agent = None
@@ -138,13 +148,19 @@ elif part == "Part 2 — Prompt caching":
     part_header("Prompt caching", "Cache static system prompts to reduce latency on repeat calls.")
 
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
+        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part2_prompt_caching.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
+        with tab_about:
+            st.markdown("""
+A cache point marker lets Bedrock store a large static system-prompt prefix once (cache WRITE) and reuse it on later calls (cache READ) at a discounted rate, cutting latency and cost.
+
+**Try it:** Run a prompt twice and check `cacheReadInputTokens` / `cacheWriteInputTokens` in the usage metrics — a cache HIT shows reads with zero writes.
+""")
         with tab_code:
             st.code("""
 from strands import Agent
@@ -275,13 +291,19 @@ elif part == "Part 3 — Conv. Managers":
     part_header("Conversation managers", "SummarizingConversationManager compresses older context automatically.")
 
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
+        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part3_conversation_managers.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
+        with tab_about:
+            st.markdown("""
+`SummarizingConversationManager` compresses older turns into a summary so the agent keeps earlier decisions without carrying the full transcript, preserving the most recent messages intact.
+
+**Try it:** Run the long architecture-design thread, then type `recall` to ask it to list earlier decisions and confirm the summary retained them.
+""")
         with tab_code:
             st.code("""
 from strands import Agent
@@ -362,13 +384,19 @@ elif part == "Part 4 — Isolation":
     part_header("Context isolation", "Specialized agents each get only relevant context — no bloat.")
 
     with st.expander("📐 Architecture & Code", expanded=False):
-        tab_diagram, tab_code = st.tabs(["Architecture Diagram", "Code"])
+        tab_diagram, tab_about, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part4_context_isolation.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
+        with tab_about:
+            st.markdown("""
+Specialized sub-agents (research → analysis → writing) each receive only the context relevant to their step, not the whole history, keeping every agent's context lean. The writer never sees the raw research and the researcher never sees the summary.
+
+**Try it:** Run the renewable-energy pipeline and note how little each sub-agent sees compared with one agent holding everything.
+""")
         with tab_code:
             st.code("""
 from strands import Agent
@@ -455,13 +483,19 @@ elif part == "Part 5 — Tool Design":
     }
 
     with st.expander("📐 Architecture & Tool Comparison", expanded=False):
-        tab_diagram, tab_comparison = st.tabs(["Architecture Diagram", "Tool Output Comparison"])
+        tab_diagram, tab_about, tab_comparison = st.tabs(["📐 Diagram", "ℹ️ About", "Tool Output Comparison"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part5_tool_design.png")
             if os.path.exists(diagram_path):
                 st.image(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
+        with tab_about:
+            st.markdown("""
+Tool output format directly drives token cost. The same customer record can be returned as a compact pipe-delimited line, compact JSON, or a verbose formatted report — each consuming very different amounts of the context window.
+
+**Try it:** Switch the active tool mode and re-run a lookup to watch the estimated and actual token counts change for identical data.
+""")
         with tab_comparison:
             cols = st.columns(3)
             for i, (mode_name, info) in enumerate(TOOL_RESPONSES.items()):
