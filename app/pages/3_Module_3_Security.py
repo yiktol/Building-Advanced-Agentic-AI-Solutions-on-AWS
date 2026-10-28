@@ -16,8 +16,8 @@ inject_css()
 
 
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
-CUSTOMERS_TABLE = os.environ.get("CUSTOMERS_TABLE", "m3-customers")
-ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "m3-orders")
+CUSTOMERS_TABLE = os.environ.get("CUSTOMERS_TABLE", "m3-demo-customers")
+ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "m3-demo-orders")
 
 def _cfg(key, default=""):
     val = st.session_state.get(f"cfg_{key}", "")
