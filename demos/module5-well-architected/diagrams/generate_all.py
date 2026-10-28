@@ -7,7 +7,11 @@ from diagrams.aws.database import Dynamodb
 from diagrams.aws.management import Cloudwatch
 from diagrams.aws.compute import Lambda
 
-ICONS = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/aws-icons/custom"
+import os as _os
+ICONS = _os.environ.get(
+    "MLADAS_ICONS",
+    _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))), "aws-icons", "custom"),
+)
 USER = f"{ICONS}/user.png"
 ROBOT = f"{ICONS}/robot.png"
 
@@ -15,9 +19,9 @@ COMMON = {
     "show": False,
     "direction": "LR",
     "outformat": "png",
-    "graph_attr": {"pad": "0.8", "nodesep": "0.8", "ranksep": "1.5", "bgcolor": "white", "dpi": "150"},
+    "graph_attr": {"pad": "0.8", "nodesep": "1.0", "ranksep": "3.0", "bgcolor": "white", "dpi": "300", "forcelabels": "true"},
     "node_attr": {"fontsize": "13", "fontname": "Helvetica Bold"},
-    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0"},
+    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0", "minlen": "2"},
 }
 
 
@@ -46,8 +50,8 @@ def part2():
         system = Custom("System", ROBOT)
         reviewer = Custom("WA Reviewer", ROBOT)
         db = Dynamodb("Findings")
-        system >> Edge(label="assess", color="#232F3E", style="bold") >> reviewer
-        reviewer >> Edge(label="report", color="#059669", style="bold") >> db
+        system >> Edge(xlabel="assess", color="#232F3E", style="bold") >> reviewer
+        reviewer >> Edge(xlabel="report", color="#059669", style="bold") >> db
     print("  ✓ part2_wa_review.png")
 
 
@@ -56,8 +60,8 @@ def part3():
         v1 = Custom("Agent v1", ROBOT)
         health = Cloudwatch("Health Check")
         v2 = Custom("Agent v2", ROBOT)
-        v1 >> Edge(label="deploy", color="#0073BB", style="bold") >> health
-        health >> Edge(label="healthy →\nactivate", color="#059669", style="bold") >> v2
+        v1 >> Edge(xlabel="deploy", color="#0073BB", style="bold") >> health
+        health >> Edge(xlabel="healthy →\nactivate", color="#059669", style="bold") >> v2
     print("  ✓ part3_ops_excellence.png")
 
 
@@ -68,9 +72,9 @@ def part4():
             ok = Custom("Agent OK", ROBOT)
             failed = Custom("Agent FAILED", ROBOT)
         fallback = Lambda("Fallback")
-        orch >> Edge(label="success", color="#059669", style="bold") >> ok
-        orch >> Edge(label="error", color="#DC2626", style="bold") >> failed
-        failed >> Edge(label="failover", color="#DD6B20", style="dashed") >> fallback
+        orch >> Edge(xlabel="success", color="#059669", style="bold") >> ok
+        orch >> Edge(xlabel="error", color="#DC2626", style="bold") >> failed
+        failed >> Edge(xlabel="failover", color="#DD6B20", style="dashed") >> fallback
     print("  ✓ part4_reliability.png")
 
 
@@ -81,8 +85,8 @@ def part5():
             economy = Bedrock("Economy Model")
             premium = Bedrock("Premium Model")
         cost = Cloudwatch("Cost Metrics")
-        query >> Edge(label="simple", color="#059669", style="bold") >> economy
-        query >> Edge(label="complex", color="#7C3AED", style="bold") >> premium
+        query >> Edge(xlabel="simple", color="#059669", style="bold") >> economy
+        query >> Edge(xlabel="complex", color="#7C3AED", style="bold") >> premium
         economy >> Edge(color="#0073BB", style="dashed") >> cost
         premium >> Edge(color="#0073BB", style="dashed") >> cost
     print("  ✓ part5_cost_optimization.png")

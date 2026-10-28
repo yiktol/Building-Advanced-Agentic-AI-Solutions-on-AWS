@@ -4,7 +4,11 @@ from diagrams import Diagram, Cluster, Edge
 from diagrams.custom import Custom
 from diagrams.aws.ml import Bedrock
 
-ICONS = "/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS/aws-icons/custom"
+import os as _os
+ICONS = _os.environ.get(
+    "MLADAS_ICONS",
+    _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))), "aws-icons", "custom"),
+)
 USER = f"{ICONS}/user.png"
 ROBOT = f"{ICONS}/robot.png"
 TOOL = f"{ICONS}/tool.png"
@@ -13,9 +17,9 @@ COMMON = {
     "show": False,
     "direction": "LR",
     "outformat": "png",
-    "graph_attr": {"pad": "0.8", "nodesep": "0.8", "ranksep": "1.5", "bgcolor": "white", "dpi": "150"},
+    "graph_attr": {"pad": "0.8", "nodesep": "1.0", "ranksep": "3.0", "bgcolor": "white", "dpi": "300", "forcelabels": "true"},
     "node_attr": {"fontsize": "13", "fontname": "Helvetica Bold"},
-    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0"},
+    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0", "minlen": "2"},
 }
 
 
@@ -23,7 +27,7 @@ def part1():
     with Diagram("Part 1 — Single Agent (Overloaded)", filename="part1_single_agent", **COMMON):
         user = Custom("Customer", USER)
         agent = Custom("Single Agent", ROBOT)
-        user >> Edge(label="billing + tech +\nproduct queries", color="#DC2626", style="bold") >> agent
+        user >> Edge(xlabel="billing + tech +\nproduct queries", color="#DC2626", style="bold") >> agent
     print("  ✓ part1_single_agent.png")
 
 
@@ -36,7 +40,7 @@ def part2():
             tech = Custom("Tech Support", ROBOT)
             product = Custom("Product", ROBOT)
         user >> Edge(color="#232F3E", style="bold") >> orch
-        orch >> Edge(label="route", color="#0073BB", style="bold") >> billing
+        orch >> Edge(xlabel="route", color="#0073BB", style="bold") >> billing
         orch >> Edge(color="#0073BB", style="bold") >> tech
         orch >> Edge(color="#0073BB", style="bold") >> product
     print("  ✓ part2_orchestrator.png")
@@ -65,8 +69,8 @@ def part4():
         resolve = Custom("Resolution", ROBOT)
         followup = Custom("Follow-up", ROBOT)
         memory = Bedrock("AgentCore\nMemory")
-        diag >> Edge(label="handoff", color="#232F3E", style="bold") >> resolve
-        resolve >> Edge(label="handoff", color="#232F3E", style="bold") >> followup
+        diag >> Edge(xlabel="handoff", color="#232F3E", style="bold") >> resolve
+        resolve >> Edge(xlabel="handoff", color="#232F3E", style="bold") >> followup
         diag >> Edge(color="#7C3AED", style="dashed") >> memory
         resolve >> Edge(color="#7C3AED", style="dashed") >> memory
         followup >> Edge(color="#7C3AED", style="dashed") >> memory
