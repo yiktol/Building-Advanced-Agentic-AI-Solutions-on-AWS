@@ -24,12 +24,6 @@ with st.sidebar:
         ["Part 1 — Context Growth", "Part 2 — Prompt caching", "Part 3 — Conv. Managers", "Part 4 — Isolation", "Part 5 — Tool Design", "Part 6 — Failure Modes"],
         key="m2_part",
     )
-    from agentcore_utils import get_agentcore_status
-    _s = get_agentcore_status()
-    from style import show_status_badge
-    show_status_badge("Guardrail", _s['guardrail'])
-    show_status_badge("Memory", _s['memory'])
-    show_status_badge("Gateway", _s['gateway'])
     if st.button("🔄 Reset Session", key="m2_reset_session", use_container_width=True):
         for key in list(st.session_state.keys()):
             if key.startswith("m2"):

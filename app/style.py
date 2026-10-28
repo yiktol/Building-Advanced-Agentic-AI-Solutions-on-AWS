@@ -47,21 +47,58 @@ CHAT_CSS = """
 
     /* Part header */
     .part-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        padding: 16px 24px;
+        position: relative;
+        background: linear-gradient(120deg, #4f46e5 0%, #7c3aed 55%, #9333ea 100%);
+        border-radius: 16px;
+        padding: 22px 28px 22px 32px;
         color: white;
-        margin-bottom: 16px;
+        margin-bottom: 22px;
+        box-shadow: 0 10px 28px -10px rgba(79, 70, 229, 0.55);
+        overflow: hidden;
     }
-    .part-header h2 {
+    /* Accent bar on the left edge */
+    .part-header::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        background: rgba(255, 255, 255, 0.85);
+    }
+    /* Subtle decorative glow in the corner */
+    .part-header::after {
+        content: "";
+        position: absolute;
+        right: -40px;
+        top: -40px;
+        width: 160px;
+        height: 160px;
+        background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 70%);
+        pointer-events: none;
+    }
+    .part-header .ph-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
         margin: 0;
-        color: white;
-        font-size: 1.3rem;
+        color: #ffffff;
+        font-size: 1.45rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        line-height: 1.2;
     }
-    .part-header p {
-        margin: 4px 0 0 0;
-        opacity: 0.85;
-        font-size: 0.9rem;
+    .part-header .ph-icon {
+        font-size: 1.5rem;
+        line-height: 1;
+    }
+    .part-header .ph-desc {
+        margin: 8px 0 0 0;
+        opacity: 0.92;
+        font-size: 0.95rem;
+        font-weight: 400;
+        max-width: 70ch;
+        line-height: 1.45;
     }
 </style>
 """
@@ -73,13 +110,21 @@ def inject_css():
     st.markdown(CHAT_CSS, unsafe_allow_html=True)
 
 
-def part_header(title: str, description: str):
-    """Render a styled part header."""
+def part_header(title: str, description: str, icon: str = ""):
+    """Render a styled part header.
+
+    Args:
+        title: Header title.
+        description: Short supporting line.
+        icon: Optional emoji/glyph shown before the title.
+    """
+    import html as _html
     import streamlit as st
+    icon_html = f'<span class="ph-icon">{_html.escape(icon)}</span>' if icon else ""
     st.markdown(f"""
     <div class="part-header">
-        <h2>{title}</h2>
-        <p>{description}</p>
+        <h2 class="ph-title">{icon_html}<span>{_html.escape(title)}</span></h2>
+        <p class="ph-desc">{_html.escape(description)}</p>
     </div>
     """, unsafe_allow_html=True)
 

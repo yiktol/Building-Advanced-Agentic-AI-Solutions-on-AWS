@@ -22,15 +22,6 @@ with st.sidebar:
         ["Part 1 — Single Agent", "Part 2 — Orchestrator", "Part 3 — Agent-as-Tool", "Part 4 — Shared memory", "Part 5 — Graph & Swarm", "Auto-run Walkthrough"],
         key="m1_part",
     )
-    from agentcore_utils import get_agentcore_status
-    _s = get_agentcore_status()
-    from style import show_status_badge
-    show_status_badge("Memory", _s['memory'])
-    show_status_badge("Guardrail", _s['guardrail'])
-    show_status_badge("Evaluator", _s['evaluator'])
-    show_status_badge("Gateway", _s['gateway'])
-    show_status_badge("Cognito", _s['cognito'])
-    show_status_badge("Policy", _s['policy_store'])
     if st.button("🔄 Reset Session", key="m1_reset_session", use_container_width=True):
         for key in list(st.session_state.keys()):
             if key.startswith("m1"):

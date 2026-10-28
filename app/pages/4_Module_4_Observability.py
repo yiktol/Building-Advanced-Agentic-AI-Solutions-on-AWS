@@ -25,12 +25,6 @@ with st.sidebar:
         ["Part 1 — Metrics", "Part 2 — Loop detection", "Part 3 — Evaluation"],
         key="m4_part",
     )
-    from agentcore_utils import get_agentcore_status
-    _s = get_agentcore_status()
-    from style import show_status_badge
-    show_status_badge("Evaluator", _s['evaluator'])
-    show_status_badge("Guardrail", _s['guardrail'])
-    show_status_badge("CloudWatch", True)
     if st.button("🔄 Reset Session", key="m4_reset_session", use_container_width=True):
         for key in list(st.session_state.keys()):
             if key.startswith("m4"):

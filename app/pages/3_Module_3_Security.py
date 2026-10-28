@@ -40,13 +40,6 @@ with st.sidebar:
         ["Part 1 — Unprotected", "Part 2 — Cedar Policies", "Part 3 — Cognito Auth"],
         key="m3_part",
     )
-    from agentcore_utils import get_agentcore_status
-    from style import show_status_badge
-    _s = get_agentcore_status()
-    show_status_badge("AgentCore Policy", _s['policy_store'])
-    show_status_badge("Cognito", _s['cognito'])
-    show_status_badge("Guardrail", _s['guardrail'])
-    show_status_badge("Memory", _s['memory'])
     if st.button("🔄 Reset Session", key="m3_reset_session", use_container_width=True):
         for key in list(st.session_state.keys()):
             if key.startswith("m3"):
