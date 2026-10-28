@@ -100,6 +100,14 @@ CHAT_CSS = """
         max-width: 70ch;
         line-height: 1.45;
     }
+    /* Collapse any empty paragraphs Streamlit may inject around the HTML block */
+    .part-header p:empty {
+        display: none;
+        margin: 0;
+    }
+    .part-header > :last-child {
+        margin-bottom: 0;
+    }
 </style>
 """
 
@@ -121,12 +129,16 @@ def part_header(title: str, description: str, icon: str = ""):
     import html as _html
     import streamlit as st
     icon_html = f'<span class="ph-icon">{_html.escape(icon)}</span>' if icon else ""
-    st.markdown(f"""
-    <div class="part-header">
-        <h2 class="ph-title">{icon_html}<span>{_html.escape(title)}</span></h2>
-        <p class="ph-desc">{_html.escape(description)}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Emit as a single line with no leading indentation. Streamlit's markdown
+    # parser otherwise treats indented/multi-line HTML as code blocks or wraps
+    # stray newlines in empty <p> tags, which adds phantom vertical space.
+    html = (
+        f'<div class="part-header">'
+        f'<h2 class="ph-title">{icon_html}<span>{_html.escape(title)}</span></h2>'
+        f'<p class="ph-desc">{_html.escape(description)}</p>'
+        f'</div>'
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def show_status_badge(label: str, connected: bool):
