@@ -141,10 +141,31 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
     st.caption("Enter resource IDs to connect real AWS services. Leave empty for local fallback.")
 
     # Auto-detect from CloudFormation
+    dcol1, dcol2 = st.columns([5, 1])
+    with dcol2:
+        if st.button("🔄 Refresh detection", key="cfg_refresh_detection", use_container_width=True,
+                     help="Re-query CloudFormation for the latest resource IDs and clear any cached/entered values."):
+            # Clear the cached CloudFormation lookup (Home page + agentcore_utils module cache)
+            get_cfn_outputs.clear()
+            try:
+                import agentcore_utils
+                agentcore_utils._cfn_cache = None
+            except Exception:
+                pass
+            # Clear previously detected/entered resource IDs so inputs repopulate from fresh detection
+            for _k in [
+                "cfg_SharedMemoryId", "cfg_GuardrailId", "cfg_GuardrailVersion",
+                "cfg_ToolSelectionEvaluatorId", "cfg_PolicyStoreId",
+                "cfg_CognitoUserPoolId", "cfg_CognitoClientId", "cfg_GatewayId",
+            ]:
+                st.session_state.pop(_k, None)
+            st.rerun()
+
     cfn_outputs = get_cfn_outputs()
-    if cfn_outputs:
-        detected = ", ".join(cfn_outputs.keys())
-        st.success(f"🔍 Auto-detected from CloudFormation stacks: {detected}")
+    with dcol1:
+        if cfn_outputs:
+            detected = ", ".join(cfn_outputs.keys())
+            st.success(f"🔍 Auto-detected from CloudFormation stacks: {detected}")
 
     # --- Model Selection ---
     st.markdown("**:material/smart_toy: Model Configuration**")
