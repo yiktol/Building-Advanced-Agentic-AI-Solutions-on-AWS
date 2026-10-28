@@ -206,14 +206,9 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
         st.session_state["cfg_JUDGE_MODEL_ID"] = judge_models[judge_choice]
 
     # Inference parameters
-    pcol1, pcol2 = st.columns(2)
-    with pcol1:
-        temp_val = st.slider("Temperature", min_value=0.0, max_value=1.0, value=0.7, step=0.1, key="cfg_temp_slider", help="Controls randomness. Lower = more focused, higher = more creative.")
-        st.session_state["cfg_temperature"] = temp_val
-    with pcol2:
-        max_tok_val = st.slider("Max tokens", min_value=256, max_value=4096, value=2048, step=256, key="cfg_max_tokens_slider", help="Maximum response length in tokens.")
-        st.session_state["cfg_max_tokens"] = max_tok_val
-    st.caption(f"Generation: `{generation_models[gen_choice]}` | Judge: `{judge_models[judge_choice]}` | Temp: {temp_val} | Max: {max_tok_val}")
+    max_tok_val = st.slider("Max tokens", min_value=256, max_value=4096, value=2048, step=256, key="cfg_max_tokens_slider", help="Maximum response length in tokens.")
+    st.session_state["cfg_max_tokens"] = max_tok_val
+    st.caption(f"Generation: `{generation_models[gen_choice]}` | Judge: `{judge_models[judge_choice]}` | Max: {max_tok_val}")
 
     c1, c2, c3 = st.columns(3)
     with c1:
