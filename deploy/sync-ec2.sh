@@ -8,7 +8,16 @@
 
 set -e
 
-INSTANCE_ID="${1:-i-00c7cc125113deaa6}"
+# If no instance ID passed, auto-resolve the current in-service ASG instance
+if [ -n "$1" ]; then
+  INSTANCE_ID="$1"
+else
+  INSTANCE_ID="$(aws autoscaling describe-auto-scaling-groups \
+    --auto-scaling-group-name mladas-app-asg \
+    --region "${2:-ap-southeast-1}" \
+    --query 'AutoScalingGroups[0].Instances[?LifecycleState==`InService`].InstanceId | [0]' \
+    --output text 2>/dev/null)"
+fi
 REGION="${2:-ap-southeast-1}"
 REPO_DIR="/home/ubuntu/Building-Advanced-Agentic-AI-Solutions-on-AWS"
 ENV_FILE="$(dirname "$0")/../.env"
@@ -91,7 +100,7 @@ CMD_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --region "$REGION" \
   --document-name "AWS-RunShellScript" \
-  --parameters "{\"commands\":[\"systemctl restart ${PROJECT}-demo && sleep 2 && systemctl is-active ${PROJECT}-demo\"]}" \
+  --parameters "{\"commands\":[\"systemctl restart ${PROJECT} && sleep 2 && systemctl is-active ${PROJECT}\"]}" \
   --query "Command.CommandId" \
   --output text)
 

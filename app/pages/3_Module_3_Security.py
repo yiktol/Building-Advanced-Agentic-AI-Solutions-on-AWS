@@ -78,7 +78,7 @@ if part == "Part 1 — Unprotected":
         *Reference: [OWASP Agentic AI Threats](https://owasp.org/www-project-agentic-ai/)*
         """)
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module3-security/diagrams/part1_unprotected.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part1_unprotected.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)

@@ -150,17 +150,16 @@ with st.expander("⚙️ Service Configuration — Connect real AWS services", e
     st.markdown("**:material/smart_toy: Model Configuration**")
     mcol1, mcol2 = st.columns(2)
     generation_models = {
+        "Claude Haiku 5.5 (Global)": "global.anthropic.claude-haiku-5-5",
+        "Claude Haiku 4.5 (Global)": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
         "Nova Micro (APAC)": "apac.amazon.nova-micro-v1:0",
         "Nova Lite (APAC)": "apac.amazon.nova-lite-v1:0",
         "Nova Pro (APAC)": "apac.amazon.nova-pro-v1:0",
-        "Claude Sonnet 4 (APAC)": "apac.anthropic.claude-sonnet-4-20250514-v1:0",
-        "Claude Sonnet 4.5 (Global)": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "Claude Haiku 4.5 (Global)": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     }
     judge_models = {
-        "Nova Pro (APAC)": "apac.amazon.nova-pro-v1:0",
-        "Claude Sonnet 4 (APAC)": "apac.anthropic.claude-sonnet-4-20250514-v1:0",
+        "Claude Haiku 5.5 (Global)": "global.anthropic.claude-haiku-5-5",
         "Claude Haiku 4.5 (Global)": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "Nova Pro (APAC)": "apac.amazon.nova-pro-v1:0",
     }
     with mcol1:
         gen_choice = st.selectbox(
@@ -266,7 +265,7 @@ with col2:
     st.markdown("### 🛠️ Tech Stack")
     st.markdown("""
     - **Strands Agents SDK** — Agent orchestration
-    - **Amazon Bedrock** — Foundation models (Claude Sonnet 4)
+    - **Amazon Bedrock** — Foundation models (Claude Haiku 5.5)
     - **Amazon Bedrock AgentCore** — Memory, Gateway, Policy Engine, Evaluators
     - **Amazon Cognito** — Authentication (OAuth 2.0)
     - **Amazon DynamoDB** — Data persistence

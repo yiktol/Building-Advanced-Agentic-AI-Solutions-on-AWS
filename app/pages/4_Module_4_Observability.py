@@ -189,7 +189,7 @@ if part == "Part 1 — Metrics":
 elif part == "Part 2 — Loop detection":
     part_header("Loop detection", "Circuit breaker activates when agent makes too many repeated tool calls.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module4-observability/diagrams/part3_loop_detection.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part3_loop_detection.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -281,7 +281,7 @@ elif part == "Part 2 — Loop detection":
 elif part == "Part 3 — Evaluation":
     part_header("LLM-as-judge evaluation", "Automated quality scoring of agent responses.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module4-observability/diagrams/part4_evaluation.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part4_evaluation.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)

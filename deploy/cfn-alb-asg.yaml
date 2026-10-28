@@ -124,15 +124,32 @@ Resources:
                 Value: !Sub '${ProjectPrefix}-server'
         UserData:
           Fn::Base64: !Sub |
-            #!/bin/bash -xe
+            #!/bin/bash -x
             exec > /var/log/userdata.log 2>&1
             export DEBIAN_FRONTEND=noninteractive
 
-            # Wait for apt locks
-            while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+            # Wait until cloud-init/unattended-upgrades release all apt/dpkg locks
+            wait_for_apt() {
+              for i in $(seq 1 60); do
+                if fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock \
+                         /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+                  echo "apt locked, waiting... ($i)"; sleep 10
+                else
+                  return 0
+                fi
+              done
+            }
 
-            apt-get update -y
-            apt-get install -y python3.12 python3.12-venv python3.12-dev git graphviz curl jq
+            wait_for_apt; apt-get update -y
+            wait_for_apt; apt-get install -y software-properties-common
+
+            # Ubuntu 22.04 (Jammy) repos only ship up to python3.10; add deadsnakes for 3.12
+            wait_for_apt; add-apt-repository -y ppa:deadsnakes/ppa
+            wait_for_apt; apt-get update -y
+            wait_for_apt; apt-get install -y python3.12 python3.12-venv python3.12-dev git graphviz curl jq unzip
+
+            # Fail loudly if python3.12 did not install
+            command -v python3.12 || { echo "FATAL: python3.12 not installed"; exit 1; }
 
             # Install AWS CLI
             if ! command -v aws &>/dev/null; then

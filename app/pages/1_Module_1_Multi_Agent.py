@@ -48,7 +48,7 @@ with st.sidebar:
 if part == "Part 1 — Single Agent":
     part_header("Single agent (cognitive load)", "One agent handles billing, tech support, and product queries.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module1-multi-agent/diagrams/part1_single_agent.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part1_single_agent.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -173,7 +173,7 @@ Always verify identity before account changes."""
 elif part == "Part 2 — Orchestrator":
     part_header("Orchestrator pattern", "Centralized routing to specialist agents.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module1-multi-agent/diagrams/part2_orchestrator.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part2_orchestrator.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -329,7 +329,7 @@ NEVER respond without first calling a tool. If you respond without calling a too
 elif part == "Part 3 — Agent-as-Tool":
     part_header("Agent-as-tool (MCP pattern)", "Shared tools reused by different agents.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module1-multi-agent/diagrams/part3_agent_as_tool.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part3_agent_as_tool.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)
@@ -408,7 +408,7 @@ elif part == "Part 3 — Agent-as-Tool":
 elif part == "Part 4 — Shared memory":
     part_header("Shared memory", "Agents collaborate via shared memory — like AgentCore Memory.")
 
-    diagram_path = "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/demos/module1-multi-agent/diagrams/part4_shared_memory.png"
+    diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part4_shared_memory.png")
     if os.path.exists(diagram_path):
         with st.expander("📐 Architecture Diagram", expanded=False):
             st.image(diagram_path)

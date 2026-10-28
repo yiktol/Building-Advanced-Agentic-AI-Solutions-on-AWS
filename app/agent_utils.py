@@ -4,7 +4,7 @@ import os
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-MODEL_ID = os.environ.get("MODEL_ID", "apac.amazon.nova-micro-v1:0")
+MODEL_ID = os.environ.get("MODEL_ID", "global.anthropic.claude-haiku-5-5")
 
 
 def _get_model_id():
@@ -16,7 +16,7 @@ def _get_model_id():
             return val.strip()
     except Exception:
         pass
-    return MODEL_ID or "apac.amazon.nova-micro-v1:0"
+    return MODEL_ID or "global.anthropic.claude-haiku-5-5"
 
 
 def _get_judge_model_id():
@@ -33,7 +33,7 @@ def _get_judge_model_id():
 
 def get_model():
     """Get the Bedrock model instance."""
-    model_id = "apac.amazon.nova-micro-v1:0"
+    model_id = "global.anthropic.claude-haiku-5-5"
 
     # Try to get from session state (Home page selector)
     try:
