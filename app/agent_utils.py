@@ -68,6 +68,19 @@ def create_agent(system_prompt: str, tools: list = None, name: str = None) -> Ag
     return Agent(**kwargs)
 
 
+def _default_metrics() -> dict:
+    """Standard metrics dict with all keys present (defaulted to 0) so callers
+    can safely use m["inputTokens"] etc. without KeyError."""
+    return {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0,
+        "latencyMs": 0,
+    }
+
+
 def _partial_text_from_agent(agent: Agent) -> str:
     """Recover the partial assistant text Strands appended before hitting the
     max-tokens limit. Returns '' if nothing usable is found."""
@@ -127,10 +140,13 @@ def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
     except MaxTokensReachedException:
         partial = _partial_text_from_agent(agent)
         text = (partial or "_(No output before the token limit was reached.)_") + _MAX_TOKENS_NOTE
-        return text, {"maxTokensReached": True}
+        metrics = _default_metrics()
+        metrics["maxTokensReached"] = True
+        return text, metrics
 
     text = str(response)
-    metrics = {}
+    # Always start from defaults so callers can safely use m["inputTokens"] etc.
+    metrics = _default_metrics()
     try:
         # Get per-turn metrics from the last invocation (not accumulated across all turns)
         invocations = response.metrics.agent_invocations
