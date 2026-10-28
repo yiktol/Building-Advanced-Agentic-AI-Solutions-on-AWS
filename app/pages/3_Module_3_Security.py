@@ -79,7 +79,7 @@ if part == "Part 1 — Unprotected":
         """)
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part1_unprotected.png")
-    suggestions = ["Process $5000 refund ORD-5006", "Show customer CUST-1005"]
+    suggestions = ["Process $5000 refund ORD-5006", "Show customer CUST-1005", "Change CUST-1003 tier to enterprise"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
@@ -150,8 +150,6 @@ Identify all security vulnerabilities demonstrated in this interaction."""
         return str(result)
 
     st.warning("⚠️ No security!")
-    with st.expander("💡 Try these"):
-        st.code("Process $5000 refund on ORD-5006\nShow customer CUST-1005\nChange CUST-1003 tier to enterprise")
 
     if st.session_state.m3p1_agent is None:
         try:
