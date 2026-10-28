@@ -50,7 +50,8 @@ htmlcov/
 *.log
 
 # Diagrams output
-demos/*/diagrams/*.png
+# PNG diagrams are committed because the Streamlit app renders them at runtime
+# (see app/pages/*). SVG intermediates remain ignored.
 demos/*/diagrams/*.svg
 
 # Presentations
