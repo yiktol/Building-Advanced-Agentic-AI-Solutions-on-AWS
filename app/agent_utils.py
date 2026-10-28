@@ -7,6 +7,18 @@ from strands.models import BedrockModel
 MODEL_ID = os.environ.get("MODEL_ID", "global.anthropic.claude-haiku-5-5")
 
 
+def _supports_temperature(model_id: str) -> bool:
+    """Whether a Bedrock model accepts the `temperature` inference parameter.
+
+    Claude Haiku 5.x (e.g. global.anthropic.claude-haiku-5-5) deprecated
+    `temperature` and returns a ValidationException if it is supplied.
+    """
+    mid = (model_id or "").lower()
+    if "claude-haiku-5" in mid:
+        return False
+    return True
+
+
 def _get_model_id():
     """Get model ID from session state (sidebar selector) or env var."""
     try:
@@ -49,7 +61,9 @@ def get_model():
         import streamlit as st
         temp = st.session_state.get("cfg_temperature", None)
         max_tokens = st.session_state.get("cfg_max_tokens", None)
-        if temp is not None:
+        # Some newer models (e.g. Claude Haiku 5.5) deprecated `temperature` and
+        # reject it with a ValidationException. Only pass it when supported.
+        if temp is not None and _supports_temperature(model_id):
             kwargs["temperature"] = temp
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
