@@ -19,16 +19,33 @@ def _get_model_id():
     return MODEL_ID or "global.anthropic.claude-haiku-5-5"
 
 
+# Known-good model/inference-profile IDs valid in ap-southeast-1. Used to reject
+# stale session-state values (e.g. from an older model list) that would cause
+# "The provided model identifier is invalid" ValidationExceptions.
+_VALID_MODEL_IDS = {
+    "global.anthropic.claude-haiku-5-5",
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "apac.amazon.nova-micro-v1:0",
+    "apac.amazon.nova-lite-v1:0",
+    "apac.amazon.nova-pro-v1:0",
+}
+_DEFAULT_JUDGE_MODEL_ID = "global.anthropic.claude-haiku-5-5"
+
+
 def _get_judge_model_id():
-    """Get judge model ID from session state or default to nova pro."""
+    """Get judge model ID from session state, validated against known-good IDs.
+
+    Falls back to the default if the session value is missing or stale/invalid,
+    so a leftover selection from an older model list can't crash evaluations.
+    """
     try:
         import streamlit as st
-        val = st.session_state.get("cfg_JUDGE_MODEL_ID", "")
-        if val and val.strip():
-            return val.strip()
+        val = (st.session_state.get("cfg_JUDGE_MODEL_ID", "") or "").strip()
+        if val in _VALID_MODEL_IDS:
+            return val
     except Exception:
         pass
-    return "apac.amazon.nova-pro-v1:0"
+    return _DEFAULT_JUDGE_MODEL_ID
 
 
 def get_model():

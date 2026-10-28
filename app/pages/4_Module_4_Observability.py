@@ -327,7 +327,7 @@ For this interactive demo, we use a local LLM-as-judge that scores responses imm
             from agent_utils import _get_judge_model_id
             import json as _json
 
-            judge_model = _BM(model_id=_get_judge_model_id(), max_tokens=1024)
+            judge_model = _BM(model_id=_get_judge_model_id(), region_name="ap-southeast-1", max_tokens=1024)
             judge = _A(
                 model=judge_model,
                 system_prompt="""You are an agent evaluator scoring responses on 5 dimensions matching AgentCore built-in evaluators.
