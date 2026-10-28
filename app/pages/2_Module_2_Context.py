@@ -6,14 +6,14 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from style import inject_css, part_header
-from agent_utils import create_agent, chat_response, chat_response_with_metrics, MODEL_ID
+from style import inject_css, part_header, live_services_caption
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, MODEL_ID
 from strands import Agent, tool
-from strands.models import BedrockModel
 from strands.agent.conversation_manager import SummarizingConversationManager
 
 st.set_page_config(page_title="Module 2: Context", page_icon="2️⃣", layout="wide")
 inject_css()
+live_services_caption()
 
 
 # --- Sidebar Controls ---
@@ -85,15 +85,15 @@ Context is a finite resource. As a long conversation accumulates, token counts r
                 mc1, mc2, mc3, mc4 = st.columns(4)
                 mc1.metric(
                     "Input Tokens",
-                    f"{m['inputTokens']:,}",
-                    delta=f"+{m['inputTokens'] - prev['inputTokens']:,}" if prev else None,
+                    f"{m.get('inputTokens', 0):,}",
+                    delta=f"+{m.get('inputTokens', 0) - prev.get('inputTokens', 0):,}" if prev else None,
                     delta_color="inverse",
                 )
-                mc2.metric("Output Tokens", f"{m['outputTokens']:,}")
+                mc2.metric("Output Tokens", f"{m.get('outputTokens', 0):,}")
                 mc3.metric(
                     "Total Tokens",
-                    f"{m['totalTokens']:,}",
-                    delta=f"+{m['totalTokens'] - prev['totalTokens']:,}" if prev else None,
+                    f"{m.get('totalTokens', 0):,}",
+                    delta=f"+{m.get('totalTokens', 0) - prev.get('totalTokens', 0):,}" if prev else None,
                     delta_color="inverse",
                 )
                 mc4.metric("Turn", f"{metrics_idx + 1}")
@@ -101,8 +101,8 @@ Context is a finite resource. As a long conversation accumulates, token counts r
     # Progress bar showing context usage at the end
     if st.session_state.m2p1_metrics:
         latest = st.session_state.m2p1_metrics[-1]
-        context_pct = min(latest['inputTokens'] / 128000, 1.0)
-        st.progress(context_pct, text=f"Context window usage: {latest['inputTokens']:,} / 128,000 tokens ({context_pct:.1%})")
+        context_pct = min(latest.get('inputTokens', 0) / 128000, 1.0)
+        st.progress(context_pct, text=f"Context window usage: {latest.get('inputTokens', 0):,} / 128,000 tokens ({context_pct:.1%})")
 
     # Suggestion chips
     if not st.session_state.m2p1_msgs:
@@ -131,10 +131,10 @@ Context is a finite resource. As a long conversation accumulates, token counts r
         prev = st.session_state.m2p1_metrics[-1] if st.session_state.m2p1_metrics else None
         mc1, mc2, mc3, mc4 = st.columns(4)
         mc1.metric("Input Tokens", f"{metrics.get('inputTokens', 0):,}",
-                   delta=f"+{metrics['inputTokens'] - prev['inputTokens']:,}" if prev else None, delta_color="inverse")
+                   delta=f"+{metrics.get('inputTokens', 0) - prev.get('inputTokens', 0):,}" if prev else None, delta_color="inverse")
         mc2.metric("Output Tokens", f"{metrics.get('outputTokens', 0):,}")
         mc3.metric("Total Tokens", f"{metrics.get('totalTokens', 0):,}",
-                   delta=f"+{metrics['totalTokens'] - prev['totalTokens']:,}" if prev else None, delta_color="inverse")
+                   delta=f"+{metrics.get('totalTokens', 0) - prev.get('totalTokens', 0):,}" if prev else None, delta_color="inverse")
         mc4.metric("Turn", f"{len(st.session_state.m2p1_metrics) + 1}")
         st.session_state.m2p1_msgs.append({"role": "assistant", "content": resp})
         st.session_state.m2p1_metrics.append(metrics)
@@ -200,7 +200,7 @@ print(usage["cacheWriteInputTokens"])  # 0 on cache hit
     st.caption(":material/info: First call writes to cache (1.25× cost). Subsequent calls read from cache (discounted rate). Watch the metrics change.")
 
     if st.session_state.m2p2_agent is None:
-        model = BedrockModel(model_id=MODEL_ID, region_name="ap-southeast-1", cache_tools="default")
+        model = make_model("generation", cache_tools="default")
         large_prompt = "You are a financial analyst for GlobalTech Corp ($12.1B revenue). " * 20 + "\nProvide detailed analysis with specific numbers."
         system_with_cache = [{"text": large_prompt}, {"cachePoint": {"type": "default"}}]
         st.session_state.m2p2_agent = Agent(model=model, system_prompt=system_with_cache)
@@ -349,7 +349,7 @@ result = agent("List all key architectural decisions we've made so far")
 
     if st.session_state.m2p3_agent is None:
         st.session_state.m2p3_agent = Agent(
-            model=BedrockModel(model_id=MODEL_ID, region_name="ap-southeast-1"),
+            model=make_model("generation"),
             system_prompt="You are a software architect. Design systems incrementally. Reference prior decisions.",
             conversation_manager=SummarizingConversationManager(summary_ratio=0.5, preserve_recent_messages=4),
         )
@@ -602,8 +602,8 @@ Tool output format directly drives token cost. The same customer record can be r
 
     # Show cumulative token impact
     if st.session_state.m2p5_token_log:
-        total_tokens = sum(entry["totalTokens"] for entry in st.session_state.m2p5_token_log)
-        total_input = sum(entry["inputTokens"] for entry in st.session_state.m2p5_token_log)
+        total_tokens = sum(entry.get("totalTokens", 0) for entry in st.session_state.m2p5_token_log)
+        total_input = sum(entry.get("inputTokens", 0) for entry in st.session_state.m2p5_token_log)
         st.divider()
         st.markdown("**📊 Session Totals**")
         sc1, sc2, sc3 = st.columns(3)
@@ -675,8 +675,7 @@ Output format:
 
     def judge_context_failure(user_query: str, agent_response: str, injected_mode: str) -> str:
         """Use a Judge Model to evaluate context failure impact."""
-        from agent_utils import _get_judge_model_id
-        judge_model = BedrockModel(model_id=_get_judge_model_id(), region_name="ap-southeast-1")
+        judge_model = make_model("judge")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_CONTEXT_FAILURE_PROMPT)
         evaluation_prompt = f"""Evaluate this interaction where the agent has **{injected_mode}** injected into its context:
 

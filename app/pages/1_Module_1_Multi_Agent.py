@@ -5,14 +5,14 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from style import inject_css, part_header
+from style import inject_css, part_header, live_services_caption
 import agent_utils
-from agent_utils import create_agent, chat_response, MODEL_ID
+from agent_utils import create_agent, chat_response, chat_stream, make_model, MODEL_ID
 from strands import Agent, tool
-from strands.models import BedrockModel
 
 st.set_page_config(page_title="Module 1: Multi-Agent", page_icon="1️⃣", layout="wide")
 inject_css()
+live_services_caption()
 
 # --- Sidebar Controls ---
 with st.sidebar:
@@ -100,7 +100,7 @@ Output format:
 
     def judge_response(user_query: str, agent_response: str) -> str:
         """Use a Judge Model to evaluate the agent's response for cognitive load issues."""
-        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id(), region_name="ap-southeast-1")
+        judge_model = make_model("judge")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_SYSTEM_PROMPT)
         evaluation_prompt = f"""Evaluate this single-agent interaction:
 
@@ -139,9 +139,7 @@ Always verify identity before account changes."""
             with st.chat_message("user"):
                 st.markdown(selected)
             with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    resp = chat_response(st.session_state.m1p1_agent, selected)
-                st.markdown(resp)
+                resp = st.write_stream(chat_stream(st.session_state.m1p1_agent, selected))
             st.session_state.m1p1_msgs.append({"role": "assistant", "content": resp})
             # Judge evaluation
             with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
@@ -156,9 +154,7 @@ Always verify identity before account changes."""
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                resp = chat_response(st.session_state.m1p1_agent, prompt)
-            st.markdown(resp)
+            resp = st.write_stream(chat_stream(st.session_state.m1p1_agent, prompt))
         st.session_state.m1p1_msgs.append({"role": "assistant", "content": resp})
         # Judge evaluation
         with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
@@ -232,7 +228,7 @@ Output format:
 
     def judge_orchestrator_response(user_query: str, agent_response: str) -> str:
         """Use a Judge Model to evaluate the orchestrator's routing and synthesis."""
-        judge_model = BedrockModel(model_id=agent_utils._get_judge_model_id(), region_name="ap-southeast-1")
+        judge_model = make_model("judge")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_ORCH_SYSTEM_PROMPT)
         evaluation_prompt = f"""Evaluate this orchestrator interaction:
 
@@ -418,9 +414,7 @@ A Sales agent and a Support agent reuse the *same* underlying tools (`product_lo
             with st.chat_message("user"):
                 st.markdown(selected)
             with st.chat_message("assistant"):
-                with st.spinner("Calling tools..."):
-                    resp = chat_response(st.session_state.m1p3_agent, selected)
-                st.markdown(resp)
+                resp = st.write_stream(chat_stream(st.session_state.m1p3_agent, selected))
             st.session_state.m1p3_msgs.append({"role": "assistant", "content": resp})
             st.rerun()
 
@@ -429,9 +423,7 @@ A Sales agent and a Support agent reuse the *same* underlying tools (`product_lo
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Calling tools..."):
-                resp = chat_response(st.session_state.m1p3_agent, prompt)
-            st.markdown(resp)
+            resp = st.write_stream(chat_stream(st.session_state.m1p3_agent, prompt))
         st.session_state.m1p3_msgs.append({"role": "assistant", "content": resp})
 
 # =============================================================================

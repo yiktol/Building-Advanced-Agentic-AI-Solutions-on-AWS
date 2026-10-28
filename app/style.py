@@ -148,3 +148,32 @@ def show_status_badge(label: str, connected: bool):
         st.badge(label, icon=":material/check_circle:", color="green")
     else:
         st.badge(label, icon=":material/circle:", color="gray")
+
+
+def live_services_caption():
+    """Render one subtle caption summarizing which AWS services resolved to live
+    vs local simulation, plus the region.
+
+    Reads agentcore_utils.get_agentcore_status(). Guarded so any failure degrades
+    silently (nothing rendered) rather than breaking the page.
+    """
+    import streamlit as st
+    try:
+        import agentcore_utils
+        status = agentcore_utils.get_agentcore_status()
+        region = status.get("region", "")
+        labels = {
+            "memory": "Memory",
+            "evaluator": "Evaluator",
+            "guardrail": "Guardrail",
+            "cognito": "Cognito",
+            "policy_store": "Policy Store",
+            "gateway": "Gateway",
+        }
+        live = [name for key, name in labels.items() if status.get(key)]
+        if live:
+            st.caption(f"🟢 Live AWS: {', '.join(live)} · Region {region}")
+        else:
+            st.caption(f"⚪ Local simulation — no AWS services resolved · Region {region}")
+    except Exception:
+        pass

@@ -6,13 +6,13 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from style import inject_css, part_header
-from agent_utils import create_agent, chat_response, chat_response_with_metrics, MODEL_ID
+from style import inject_css, part_header, live_services_caption
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, MODEL_ID
 from strands import Agent, tool
-from strands.models import BedrockModel
 
 st.set_page_config(page_title="Module 5: Well-Architected", page_icon="5️⃣", layout="wide")
 inject_css()
+live_services_caption()
 
 
 def _do_cost_query(query, tiering_enabled):
@@ -28,9 +28,9 @@ def _do_cost_query(query, tiering_enabled):
         with st.spinner(f"Processing ({tier} tier)..."):
             # Use different models based on tier
             if tier == "economy":
-                model = BedrockModel(model_id="apac.amazon.nova-micro-v1:0", region_name="ap-southeast-1", max_tokens=1024)
+                model = make_model("generation", model_id="apac.amazon.nova-micro-v1:0", max_tokens=1024)
             else:
-                model = BedrockModel(model_id=MODEL_ID, region_name="ap-southeast-1", max_tokens=2048)
+                model = make_model("generation", max_tokens=2048)
             agent = Agent(model=model, system_prompt="You are a TechMart assistant. Pro 15 $799, Air $599, Titan $1299, Hub $149. Be concise.")
             import time as _t
             _s = _t.time()

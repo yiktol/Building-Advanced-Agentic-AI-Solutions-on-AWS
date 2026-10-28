@@ -29,13 +29,13 @@ echo "  Region:   $REGION"
 echo "  Project:  $PROJECT"
 echo ""
 
-# --- Step 1: Git pull on remote ---
-echo "1/3 Running git pull on EC2..."
+# --- Step 1: Git fetch + hard reset on remote (deterministic update) ---
+echo "1/3 Running git fetch + reset --hard on EC2..."
 CMD_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --region "$REGION" \
   --document-name "AWS-RunShellScript" \
-  --parameters "{\"commands\":[\"cd $REPO_DIR && sudo -u ubuntu git pull origin main 2>&1\"]}" \
+  --parameters "{\"commands\":[\"cd $REPO_DIR && sudo -u ubuntu git fetch origin main 2>&1 && sudo -u ubuntu git reset --hard origin/main 2>&1\"]}" \
   --query "Command.CommandId" \
   --output text)
 
@@ -50,7 +50,7 @@ PULL_STATUS=$(aws ssm get-command-invocation \
   --output text)
 
 if [ "$PULL_STATUS" != "Success" ]; then
-  echo "  ❌ git pull failed (status: $PULL_STATUS)"
+  echo "  ❌ git update failed (status: $PULL_STATUS)"
   aws ssm get-command-invocation \
     --command-id "$CMD_ID" \
     --instance-id "$INSTANCE_ID" \
@@ -59,7 +59,7 @@ if [ "$PULL_STATUS" != "Success" ]; then
     --output text
   exit 1
 fi
-echo "  ✅ git pull succeeded"
+echo "  ✅ git update succeeded"
 
 # --- Step 2: Copy .env ---
 echo ""

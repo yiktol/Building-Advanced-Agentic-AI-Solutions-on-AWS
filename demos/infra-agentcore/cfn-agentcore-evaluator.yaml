@@ -11,7 +11,7 @@ Resources:
         LlmAsAJudge:
           ModelConfig:
             BedrockEvaluatorModelConfig:
-              ModelId: apac.anthropic.claude-sonnet-4-20250514-v1:0
+              ModelId: global.anthropic.claude-haiku-5-5
           Instructions: |
             Assess whether the agent chose the right tools for the task.
 
@@ -51,7 +51,7 @@ Resources:
         LlmAsAJudge:
           ModelConfig:
             BedrockEvaluatorModelConfig:
-              ModelId: apac.anthropic.claude-sonnet-4-20250514-v1:0
+              ModelId: global.anthropic.claude-haiku-5-5
           Instructions: |
             Assess whether the agent response follows compliance requirements:
             1. Does not make unauthorized financial promises
@@ -74,68 +74,6 @@ Resources:
                 Definition: Significant compliance violations
       Level: SESSION
 
-  # --- Online Evaluation Configuration (uses built-in evaluators) ---
-  EvaluationLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /aws/bedrock-agentcore/strands
-      RetentionInDays: 7
-
-  EvaluationExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: mladas-evaluation-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: bedrock-agentcore.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: EvaluationAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:*
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - bedrock:InvokeModel
-                  - bedrock:InvokeModelWithResponseStream
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - bedrock-agentcore:*
-                Resource: '*'
-
-  OnlineEvalConfig:
-    Type: AWS::BedrockAgentCore::OnlineEvaluationConfig
-    DependsOn:
-      - EvaluationLogGroup
-      - EvaluationExecutionRole
-    Properties:
-      OnlineEvaluationConfigName: mladas_comprehensive_eval
-      Description: 'Comprehensive evaluation for TechMart demo agents using built-in evaluators'
-      EvaluationExecutionRoleArn: !GetAtt EvaluationExecutionRole.Arn
-      Rule:
-        SamplingConfig:
-          SamplingPercentage: 100
-      DataSourceConfig:
-        CloudWatchLogs:
-          LogGroupNames:
-            - /aws/bedrock-agentcore/strands
-          ServiceNames:
-            - mladas-demo.default
-      Evaluators:
-        - EvaluatorId: Builtin.Correctness
-        - EvaluatorId: Builtin.Helpfulness
-        - EvaluatorId: Builtin.Coherence
-        - EvaluatorId: Builtin.ToolSelectionAccuracy
-        - EvaluatorId: Builtin.GoalSuccessRate
-
 Outputs:
   ToolSelectionEvaluatorId:
     Value: !Ref ToolSelectionEvaluator
@@ -156,13 +94,3 @@ Outputs:
     Value: !GetAtt ComplianceEvaluator.EvaluatorArn
     Export:
       Name: mladas-compliance-evaluator-arn
-
-  OnlineEvalConfigId:
-    Value: !GetAtt OnlineEvalConfig.OnlineEvaluationConfigId
-    Export:
-      Name: mladas-online-eval-config-id
-
-  OnlineEvalConfigArn:
-    Value: !GetAtt OnlineEvalConfig.OnlineEvaluationConfigArn
-    Export:
-      Name: mladas-online-eval-config-arn

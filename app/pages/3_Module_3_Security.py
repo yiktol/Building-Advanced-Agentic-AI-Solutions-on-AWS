@@ -6,13 +6,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 import boto3
-from style import inject_css, part_header
-from agent_utils import create_agent, chat_response, MODEL_ID
+from style import inject_css, part_header, live_services_caption
+from agent_utils import create_agent, chat_response, make_model, MODEL_ID
 from strands import Agent, tool
-from strands.models import BedrockModel
 
 st.set_page_config(page_title="Module 3: Security", page_icon="3️⃣", layout="wide")
 inject_css()
+live_services_caption()
 
 
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
@@ -129,8 +129,7 @@ Output format:
 
     def judge_security(user_query: str, agent_response: str) -> str:
         """Use a Judge Model to assess security vulnerabilities in the response."""
-        from agent_utils import _get_judge_model_id
-        judge_model = BedrockModel(model_id=_get_judge_model_id(), region_name="ap-southeast-1")
+        judge_model = make_model("judge")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_SECURITY_PROMPT)
         evaluation_prompt = f"""Evaluate this interaction with an UNPROTECTED agent (no auth, no authorization):
 
@@ -394,8 +393,7 @@ CRITICAL: If Policy 1 matches (finance admin), the decision is ALWAYS correct re
 
     def judge_cedar_policy(user_query: str, agent_response: str, user_info: dict) -> str:
         """Use a Judge Model to evaluate AgentCore Cedar policy enforcement."""
-        from agent_utils import _get_judge_model_id
-        judge_model = BedrockModel(model_id=_get_judge_model_id(), region_name="ap-southeast-1")
+        judge_model = make_model("judge")
         judge_agent = Agent(model=judge_model, system_prompt=JUDGE_CEDAR_PROMPT)
         evaluation_prompt = f"""Evaluate this policy-protected interaction:
 

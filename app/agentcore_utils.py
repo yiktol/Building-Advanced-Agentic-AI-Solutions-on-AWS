@@ -202,10 +202,9 @@ class AgentCoreEvaluator:
                 return {"score": 0.5, "reasoning": f"AgentCore API error: {e}", "source": "error"}
 
         # Local fallback: use LLM-as-judge
-        from agent_utils import _get_judge_model_id
-        from strands.models import BedrockModel as _BM
+        from agent_utils import make_model
         from strands import Agent as _Agent
-        judge_model = _BM(model_id=_get_judge_model_id(), region_name=REGION)
+        judge_model = make_model("judge")
         judge = _Agent(
             model=judge_model,
             system_prompt="You are a quality judge. Score responses 0.0-1.0. Return ONLY JSON: {\"score\": X, \"reasoning\": \"...\"}",

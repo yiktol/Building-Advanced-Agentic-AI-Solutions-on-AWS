@@ -6,7 +6,7 @@ set -e
 
 REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
 STACK_PREFIX="m3-demo"
-DEFAULT_PASSWORD="Hero\$ecure1!"
+DEFAULT_PASSWORD="${DEMO_USER_PASSWORD:-Hero\$ecure1!}"
 
 ACTION="${1:-deploy}"
 
@@ -91,16 +91,11 @@ USER_POOL_ID=$(aws cloudformation describe-stacks \
     --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
     --output text)
 
-# Create users with custom attributes
-declare -A USERS
-USERS["clark.kent@dailyplanet.com"]="admin,finance,Superman,10000"
-USERS["bruce.wayne@waynetech.com"]="security_lead,security,Batman,5000"
-USERS["peter.parker@bugle.com"]="agent,support,Spider-Man,500"
-USERS["diana.prince@themyscira.gov"]="manager,operations,Wonder Woman,2000"
-USERS["tony.stark@starkindustries.com"]="engineer,engineering,Iron Man,0"
-
-for EMAIL in "${!USERS[@]}"; do
-    IFS=',' read -r ROLE DEPT HERO MAX_REFUND <<< "${USERS[$EMAIL]}"
+# Create users with custom attributes.
+# Bash-3.2 safe: newline-delimited "email,role,dept,hero_name,max_refund" rows
+# iterated with a while-read loop (no associative arrays, Bash-3.2 compatible).
+while IFS=',' read -r EMAIL ROLE DEPT HERO MAX_REFUND; do
+    [ -z "$EMAIL" ] && continue
 
     # Create user (ignore if exists)
     aws cognito-idp admin-create-user \
@@ -125,7 +120,13 @@ for EMAIL in "${!USERS[@]}"; do
         --region "$REGION" 2>/dev/null || true
 
     echo "  ✓ $HERO ($EMAIL) — $ROLE/$DEPT"
-done
+done <<'EOF'
+clark.kent@dailyplanet.com,admin,finance,Superman,10000
+bruce.wayne@waynetech.com,security_lead,security,Batman,5000
+peter.parker@bugle.com,agent,support,Spider-Man,500
+diana.prince@themyscira.gov,manager,operations,Wonder Woman,2000
+tony.stark@starkindustries.com,engineer,engineering,Iron Man,0
+EOF
 
 echo ""
 echo "=============================================="

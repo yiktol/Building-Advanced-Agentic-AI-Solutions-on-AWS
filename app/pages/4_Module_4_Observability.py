@@ -9,12 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 import boto3
-from style import inject_css, part_header
-from agent_utils import create_agent, chat_response, chat_response_with_metrics, MODEL_ID
+from style import inject_css, part_header, live_services_caption
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, estimate_cost, MODEL_ID
 from strands import tool
 
 st.set_page_config(page_title="Module 4: Observability", page_icon="4️⃣", layout="wide")
 inject_css()
+live_services_caption()
 
 
 # --- Sidebar Controls ---
@@ -98,6 +99,19 @@ Every interaction emits latency, token, and tool metrics and records a Session �
             mc5.metric("Interactions", len(all_m))
             # Token usage bar
             st.progress(min(total_input / 10000, 1.0), text=f"Token budget: {total_input:,} / 10,000 (session limit example)")
+
+        import agent_utils as _au
+        _model_id = _au._get_model_id()
+        _total_tokens = sum(m.get("totalTokens", 0) for m in all_m)
+        _est_cost = estimate_cost(_model_id, total_input, total_output)
+        with st.container(border=True):
+            st.markdown("##### 💰 Estimated session cost")
+            cc1, cc2, cc3, cc4 = st.columns(4)
+            cc1.metric("Total Tokens", f"{_total_tokens:,}")
+            cc2.metric("Total Latency", f"{total_latency:,.0f}ms")
+            cc3.metric("Avg Latency", f"{avg_latency:.0f}ms")
+            cc4.metric("Est. Cost (USD)", f"${_est_cost:.4f}")
+            st.caption(f"Estimated (not billing-accurate) for `{_model_id}`.")
 
     # Thread-safe tool-call counter. Strands runs tools on a background thread
     # that has no Streamlit ScriptRunContext, so the tools must NOT touch
@@ -364,11 +378,9 @@ For this interactive demo, we use a local LLM-as-judge that scores responses imm
             agent_resp = chat_response(agent, test_query)
 
             from strands import Agent as _A
-            from strands.models import BedrockModel as _BM
-            from agent_utils import _get_judge_model_id
             import json as _json
 
-            judge_model = _BM(model_id=_get_judge_model_id(), region_name="ap-southeast-1", max_tokens=1024)
+            judge_model = make_model("judge", max_tokens=1024)
             judge = _A(
                 model=judge_model,
                 system_prompt="""You are an agent evaluator scoring responses on 5 dimensions matching AgentCore built-in evaluators.

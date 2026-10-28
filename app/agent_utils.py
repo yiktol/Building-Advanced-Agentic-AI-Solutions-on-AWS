@@ -48,31 +48,64 @@ def _get_judge_model_id():
     return _DEFAULT_JUDGE_MODEL_ID
 
 
+def _get_max_tokens(default: int = 2048) -> int:
+    """Resolve max_tokens from session state (Home page selector), else default."""
+    try:
+        import streamlit as st
+        val = st.session_state.get("cfg_max_tokens", None)
+        if val is not None:
+            return val
+    except Exception:
+        pass
+    return default
+
+
+def make_model(purpose: str = "generation", model_id: str | None = None, **overrides) -> BedrockModel:
+    """Central factory for Bedrock model instances.
+
+    Resolves the model id with precedence:
+      explicit `model_id` arg > session_state (cfg_MODEL_ID for generation,
+      cfg_JUDGE_MODEL_ID for judge) > default global.anthropic.claude-haiku-5-5.
+
+    The resolved id is validated against `_VALID_MODEL_IDS`; if it is not in the
+    allow-list it falls back to the default (for judge, `_DEFAULT_JUDGE_MODEL_ID`)
+    so a stale/invalid selection can't crash model construction.
+
+    `region_name` is always set from the AWS_REGION env var (else ap-southeast-1).
+    `max_tokens` honors session_state cfg_max_tokens (default 2048) unless
+    overridden. **overrides are merged last, so callers can pass max_tokens,
+    cache_tools, etc. `temperature` is NEVER set — claude-haiku-5.x rejects it.
+    """
+    default_id = _DEFAULT_JUDGE_MODEL_ID if purpose == "judge" else "global.anthropic.claude-haiku-5-5"
+
+    # Resolve the model id by precedence.
+    if model_id and model_id.strip():
+        resolved = model_id.strip()
+    elif purpose == "judge":
+        resolved = _get_judge_model_id()
+    else:
+        resolved = _get_model_id()
+
+    # Validate against the allow-list; fall back to the (purpose-specific) default.
+    if resolved not in _VALID_MODEL_IDS:
+        resolved = default_id
+
+    kwargs = {
+        "model_id": resolved,
+        "region_name": os.environ.get("AWS_REGION") or "ap-southeast-1",
+        "max_tokens": _get_max_tokens(),
+    }
+    # Callers may override max_tokens / add cache_tools etc. — merge last.
+    kwargs.update(overrides)
+    # Hard guarantee: never pass temperature (claude-haiku-5.x rejects it).
+    kwargs.pop("temperature", None)
+
+    return BedrockModel(**kwargs)
+
+
 def get_model():
-    """Get the Bedrock model instance."""
-    model_id = "global.anthropic.claude-haiku-5-5"
-
-    # Try to get from session state (Home page selector)
-    try:
-        import streamlit as st
-        val = st.session_state.get("cfg_MODEL_ID", "")
-        if val and val.strip():
-            model_id = val.strip()
-    except Exception:
-        pass
-
-    # Note: `temperature` is intentionally not passed. Claude Haiku 5.x (the
-    # default) deprecated it and rejects it with a ValidationException.
-    kwargs = {"max_tokens": 2048, "region_name": "ap-southeast-1"}
-    try:
-        import streamlit as st
-        max_tokens = st.session_state.get("cfg_max_tokens", None)
-        if max_tokens is not None:
-            kwargs["max_tokens"] = max_tokens
-    except Exception:
-        pass
-
-    return BedrockModel(model_id=model_id, **kwargs)
+    """Get the Bedrock model instance (generation purpose)."""
+    return make_model("generation")
 
 
 def create_agent(system_prompt: str, tools: list = None, name: str = None) -> Agent:
@@ -182,6 +215,34 @@ def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
     except Exception:
         pass
     return text, metrics
+
+
+# Illustrative per-model prices in USD per 1,000 tokens (input, output).
+# ESTIMATED, NOT BILLING-ACCURATE — for in-app demonstration only. Real pricing
+# depends on region, tier, and current AWS rate cards.
+_PRICE_PER_1K = {
+    "global.anthropic.claude-haiku-5-5": (0.001, 0.005),
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0": (0.001, 0.005),
+    "apac.amazon.nova-micro-v1:0": (0.000035, 0.00014),
+    "apac.amazon.nova-lite-v1:0": (0.00006, 0.00024),
+    "apac.amazon.nova-pro-v1:0": (0.0008, 0.0032),
+}
+# Fallback rate for unknown model ids (input, output) per 1,000 tokens.
+_DEFAULT_PRICE_PER_1K = (0.001, 0.005)
+
+
+def estimate_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
+    """Estimate the USD cost of a turn given token counts.
+
+    Uses an illustrative per-model price table (ESTIMATED, NOT billing-accurate).
+    Unknown model ids fall back to a default rate. Always returns a non-negative
+    float.
+    """
+    in_rate, out_rate = _PRICE_PER_1K.get(model_id, _DEFAULT_PRICE_PER_1K)
+    in_tok = max(int(input_tokens or 0), 0)
+    out_tok = max(int(output_tokens or 0), 0)
+    cost = (in_tok / 1000.0) * in_rate + (out_tok / 1000.0) * out_rate
+    return max(cost, 0.0)
 
 
 def chat_stream(agent: Agent, message: str):
