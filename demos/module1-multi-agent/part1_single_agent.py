@@ -14,7 +14,7 @@ from strands import Agent
 from strands.models import BedrockModel
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # A single agent with an overloaded system prompt trying to cover everything
 SYSTEM_PROMPT = """You are a customer service agent for TechMart, an electronics e-commerce company.

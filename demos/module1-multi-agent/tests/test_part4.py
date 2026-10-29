@@ -22,7 +22,7 @@ from part4_shared_memory import (
 import part4_shared_memory
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # --- Colors ---
 GREEN = "\033[1;32m"

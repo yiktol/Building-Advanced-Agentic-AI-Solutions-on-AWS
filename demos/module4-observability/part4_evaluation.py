@@ -23,7 +23,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
 METRICS_NAMESPACE = os.environ.get("METRICS_NAMESPACE", "m4-demo/AgentMetrics")
 EVAL_TABLE = os.environ.get("EVAL_TABLE", "m4-demo-evaluations")

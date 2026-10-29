@@ -178,14 +178,20 @@ Products:
 
 ## Adjusting the Model
 
-The demos use `apac.anthropic.claude-sonnet-4-20250514-v1:0` (APAC inference profile for ap-southeast-1).
+The demos use `global.anthropic.claude-haiku-5-5` (global cross-Region inference profile, available in ap-southeast-1).
 
 To use a different region or model, update the `MODEL_ID` variable at the top of each file:
 
 ```python
-# US region example:
-MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+# A more capable model (Claude Sonnet 4.5):
+MODEL_ID = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
-# Global example:
-MODEL_ID = "anthropic.claude-sonnet-4-20250514-v1:0"
+# APAC geographic profile example (older Claude 3.x models only in this region):
+MODEL_ID = "apac.anthropic.claude-3-haiku-20240307-v1:0"
+```
+
+To see which inference profiles your account can use in a region:
+
+```bash
+aws bedrock list-inference-profiles --region ap-southeast-1
 ```

@@ -1,0 +1,7 @@
+{
+  "task_id": "task-app-improvements",
+  "task_description": "HEAVY multi-subsystem improvement of the MLADAS Streamlit demo app: central Bedrock model factory, app runtime/UI hardening (defensive metrics, live-vs-local status caption, streaming, per-session cost panel), deploy/infra fixes (.env generation from CFN, evaluator CFN reliability, Bash-3.2-safe module3 user loop + configurable demo password, deterministic sync-ec2 git update), and an offline-by-default pytest smoke suite. No commit/push/deploy — orchestrator handles that.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

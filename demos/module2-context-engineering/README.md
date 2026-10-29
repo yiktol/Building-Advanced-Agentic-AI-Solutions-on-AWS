@@ -126,5 +126,5 @@ Compare verbose vs optimized tool responses with:
 Update `MODEL_ID` at the top of each file:
 
 ```python
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 ```

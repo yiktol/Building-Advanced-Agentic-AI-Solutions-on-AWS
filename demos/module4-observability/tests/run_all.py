@@ -20,6 +20,7 @@ HEADER_BG = "\033[1;97;44m"  # White on blue
 TESTS = [
     ("Part 1: CloudWatch Metrics", "tests/test_part1.py"),
     ("Part 2: Loop Detection", "tests/test_part2.py"),
+    ("Part 3: Loop Detection (Detector)", "tests/test_part3.py"),
     ("Part 4: Evaluation", "tests/test_part4.py"),
     ("Part 5: Dashboard", "tests/test_part5.py"),
 ]

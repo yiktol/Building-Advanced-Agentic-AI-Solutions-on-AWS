@@ -21,7 +21,7 @@ from part2_multi_agent_orchestrator import (
 )
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # --- Colors ---
 CYAN = "\033[1;36m"

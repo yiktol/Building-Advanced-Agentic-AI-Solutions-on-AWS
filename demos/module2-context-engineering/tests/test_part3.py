@@ -18,7 +18,7 @@ from strands.models import BedrockModel
 from strands.agent.conversation_manager import SummarizingConversationManager
 from part3_conversation_managers import SYSTEM_PROMPT, estimate_tokens
 
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # Colors
 MAGENTA = "\033[1;35m"
@@ -52,7 +52,7 @@ def main():
     print(f"  {MAGENTA}Config: summary_ratio=0.5, preserve_recent=4{RESET}\n")
 
     agent = Agent(
-        model=BedrockModel(model_id=MODEL_ID),
+        model=BedrockModel(model_id=MODEL_ID, max_tokens=8192),
         system_prompt=SYSTEM_PROMPT,
         conversation_manager=SummarizingConversationManager(
             summary_ratio=0.5,

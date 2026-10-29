@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "M1 P3 literal duplication",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "The M1 Part 3 Prompts tab hardcodes the Sales/Support prompt lists instead of sharing the inline `suggestions` variable. This is a documented exception because the Sales/Support selectbox renders after the diagram expander, so the variable is not yet in scope. The tab's four hardcoded strings are byte-for-byte identical to the two inline branches today, but future edits to one set will not propagate to the other."
+    },
+    {
+      "label": "Unrelated demos/ changes in working tree",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "Roughly 40 files under demos/ are modified in the working tree (model-ID swaps, regenerated infra config.env, test tweaks). These are a separate pre-existing workstream and were not touched by this change, which lives entirely in app/pages/*.py per the task scope. They should be kept out of any commit scoped to the Prompts tab work."
+    }
+  ],
+  "reviewDoc": "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/.agents/tasks/prompts-tab-review.md"
+}

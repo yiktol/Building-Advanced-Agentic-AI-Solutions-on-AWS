@@ -1,0 +1,12 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "label": "About tab label missing variation selector",
+      "severity": "non-blocking",
+      "confidence": "confirmed",
+      "detail": "Tab labels render as 'ℹ About' (U+2139 + space) rather than the planned 'ℹ️ About' (with U+FE0F variation selector). Cosmetic only — the About tab is present and functional on all 18 sections. Normalize the glyph to 'ℹ️' if label consistency with the plan matters."
+    }
+  ],
+  "reviewDoc": "/Users/erictole/demo/Building-Advanced-Agentic-Systems-on-AWS/.agents/tasks/diagram-tabs-review.md"
+}

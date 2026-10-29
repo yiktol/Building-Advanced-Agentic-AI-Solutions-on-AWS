@@ -19,7 +19,7 @@ from strands.agent.conversation_manager import (
 )
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 SYSTEM_PROMPT = """You are a senior software architect helping design a microservices system.
 
@@ -73,7 +73,7 @@ def run_demo():
             break
         print("  Please enter 1, 2, or 3.")
 
-    model = BedrockModel(model_id=MODEL_ID)
+    model = BedrockModel(model_id=MODEL_ID, max_tokens=8192)
 
     if choice == "1":
         mode_name = "No Compression (NullConversationManager)"

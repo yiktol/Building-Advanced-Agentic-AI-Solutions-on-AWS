@@ -16,7 +16,7 @@ from strands.models import BedrockModel
 from strands.types.content import ContentBlock
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # Large system prompt to make caching benefits visible
 SYSTEM_PROMPT_CONTENT = """You are an advanced financial analyst AI assistant for GlobalTech Corp.

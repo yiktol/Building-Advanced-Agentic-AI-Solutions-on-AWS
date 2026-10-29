@@ -13,6 +13,7 @@ REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
 STACKS=(
     # AgentCore Infrastructure (improvements)
     "mladas-agentcore-guardrail"
+    "mladas-agentcore-policies"
     "mladas-agentcore-policy"
     "mladas-agentcore-gateway"
     "mladas-agentcore-evaluator"

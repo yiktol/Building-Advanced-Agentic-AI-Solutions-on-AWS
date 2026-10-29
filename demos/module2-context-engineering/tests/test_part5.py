@@ -21,7 +21,7 @@ from part5_tool_design import (
     optimized_order_lookup,
 )
 
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # Colors
 BLUE = "\033[1;34m"

@@ -21,6 +21,7 @@ TESTS = [
     ("Part 1: E-Commerce System", "tests/test_part1.py"),
     ("Part 2: Reliability", "tests/test_part2.py"),
     ("Part 3: Ops Excellence", "tests/test_part3.py"),
+    ("Part 4: Reliability", "tests/test_part4.py"),
     ("Part 5: Cost Optimization", "tests/test_part5.py"),
 ]
 

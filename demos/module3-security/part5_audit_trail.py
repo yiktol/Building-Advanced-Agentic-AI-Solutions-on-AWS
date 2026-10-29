@@ -22,7 +22,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
 CUSTOMERS_TABLE = os.environ.get("CUSTOMERS_TABLE", "m3-demo-customers")
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "m3-demo-orders")

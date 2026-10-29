@@ -15,7 +15,7 @@ from strands import Agent
 from strands.models import BedrockModel
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 SYSTEM_PROMPT = """You are an expert travel planner and corporate event coordinator.
 You help companies plan retreats, team-building events, and corporate travel.
@@ -65,7 +65,7 @@ def run_demo():
     print("Type 'quit' or 'exit' to end. Type 'stats' to see context stats.")
     print("=" * 70)
 
-    model = BedrockModel(model_id=MODEL_ID)
+    model = BedrockModel(model_id=MODEL_ID, max_tokens=8192)
     agent = Agent(model=model, system_prompt=SYSTEM_PROMPT)
 
     exchange_count = 0

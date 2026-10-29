@@ -18,7 +18,7 @@ from strands.models import BedrockModel
 from part1_single_agent import SYSTEM_PROMPT
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # --- Colors ---
 YELLOW = "\033[1;33m"

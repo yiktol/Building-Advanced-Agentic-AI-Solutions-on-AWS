@@ -16,7 +16,7 @@ sys.path.insert(0, ".")
 from part3_agent_as_tool import create_sales_agent, create_support_agent
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # --- Colors ---
 MAGENTA = "\033[1;35m"

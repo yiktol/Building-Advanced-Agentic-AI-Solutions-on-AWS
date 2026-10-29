@@ -15,7 +15,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 
 # =============================================================================
@@ -25,7 +25,7 @@ MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
 def create_researcher() -> Agent:
     """Research agent — only has research-related context."""
     return Agent(
-        model=BedrockModel(model_id=MODEL_ID),
+        model=BedrockModel(model_id=MODEL_ID, max_tokens=16384),
         system_prompt="""You are a market research specialist.
 
 Your role: Gather and synthesize market data, trends, and statistics.
@@ -46,7 +46,7 @@ Do NOT provide analysis or recommendations — just research data.""",
 def create_analyst() -> Agent:
     """Analysis agent — receives research output, produces analysis."""
     return Agent(
-        model=BedrockModel(model_id=MODEL_ID),
+        model=BedrockModel(model_id=MODEL_ID, max_tokens=16384),
         system_prompt="""You are a financial and strategic analyst.
 
 Your role: Take research data and produce analytical insights.
@@ -67,7 +67,7 @@ Do NOT write prose summaries — provide analytical frameworks and numbers.""",
 def create_writer() -> Agent:
     """Writing agent — receives analysis, produces executive summary."""
     return Agent(
-        model=BedrockModel(model_id=MODEL_ID),
+        model=BedrockModel(model_id=MODEL_ID, max_tokens=8192),
         system_prompt="""You are an executive communications specialist.
 
 Your role: Transform analysis into clear, compelling executive summaries.
@@ -87,7 +87,7 @@ Output: A polished 3-paragraph executive summary suitable for C-suite presentati
 def create_single_agent() -> Agent:
     """Single agent that does everything — context accumulates."""
     return Agent(
-        model=BedrockModel(model_id=MODEL_ID),
+        model=BedrockModel(model_id=MODEL_ID, max_tokens=16384),
         system_prompt="""You are a versatile business consultant who handles research,
 analysis, AND executive writing.
 

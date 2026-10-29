@@ -15,7 +15,7 @@ sys.path.insert(0, ".")
 
 from part4_context_isolation import run_isolated_pipeline, run_single_pipeline
 
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # Colors
 GREEN = "\033[1;32m"

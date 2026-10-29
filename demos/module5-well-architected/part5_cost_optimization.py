@@ -22,7 +22,7 @@ COST_NAMESPACE = os.environ.get("COST_NAMESPACE", "m5-demo/CostMetrics")
 
 # Model tiers
 TIER_ECONOMY = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"  # Cheaper for simple queries
-TIER_PREMIUM = "apac.anthropic.claude-sonnet-4-20250514-v1:0"     # Premium for complex
+TIER_PREMIUM = "global.anthropic.claude-haiku-5-5"     # Premium for complex
 
 # Pricing (approximate $/1M tokens for comparison)
 PRICING = {

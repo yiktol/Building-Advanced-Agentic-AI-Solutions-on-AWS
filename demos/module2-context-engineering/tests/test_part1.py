@@ -16,7 +16,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from part1_context_exhaustion import SYSTEM_PROMPT, estimate_tokens
 
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 
 # Colors
 YELLOW = "\033[1;33m"
@@ -44,7 +44,7 @@ def main():
     ]
 
     print(f"  {YELLOW}Creating agent...{RESET}")
-    agent = Agent(model=BedrockModel(model_id=MODEL_ID), system_prompt=SYSTEM_PROMPT)
+    agent = Agent(model=BedrockModel(model_id=MODEL_ID, max_tokens=8192), system_prompt=SYSTEM_PROMPT)
     print(f"  {YELLOW}Sending {len(queries)} queries to watch context grow.{RESET}\n")
 
     total_start = time.time()

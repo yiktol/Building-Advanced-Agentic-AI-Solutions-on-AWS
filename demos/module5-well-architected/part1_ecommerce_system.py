@@ -15,7 +15,7 @@ from strands import Agent, tool
 from strands.models import BedrockModel
 
 # --- Configuration ---
-MODEL_ID = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-haiku-5-5"
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
 PRODUCTS_TABLE = os.environ.get("PRODUCTS_TABLE", "m5-demo-products")
 ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "m5-demo-orders")
