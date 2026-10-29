@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 REGION='ap-southeast-1'
-STACK_NAME='mladas-app-infra'
+STACK_NAME='mladas-app-v2'
 PROJECT_PREFIX='mladas-app'
 
 log() { echo -e "${BLUE}[$(date +'%H:%M:%S')]${NC} $1"; }
