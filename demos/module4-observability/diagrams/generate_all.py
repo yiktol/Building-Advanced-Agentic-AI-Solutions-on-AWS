@@ -1,89 +1,78 @@
-"""Generate per-part architecture diagrams for Module 4."""
+"""Generate per-part architecture diagrams for Module 4 (shared style: demos/diagram_style.py)."""
 
-from diagrams import Diagram, Cluster, Edge
-from diagrams.custom import Custom
-from diagrams.aws.ml import Bedrock
-from diagrams.aws.database import Dynamodb
-from diagrams.aws.management import Cloudwatch
-from diagrams.aws.integration import SNS
-from diagrams.aws.devtools import XRay
+import os
+import sys
 
-import os as _os
-ICONS = _os.environ.get(
-    "MLADAS_ICONS",
-    _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))), "aws-icons", "custom"),
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+
+from diagrams import Diagram, Cluster  # noqa: E402
+from diagram_style import (  # noqa: E402
+    COMMON, NAVY, BLUE, GREEN, RED, ORANGE, PURPLE,
+    DYNAMODB, CLOUDWATCH, SNS, XRAY,
+    group, flow, aws, agent,
 )
-USER = f"{ICONS}/user.png"
-ROBOT = f"{ICONS}/robot.png"
-
-COMMON = {
-    "show": False,
-    "direction": "LR",
-    "outformat": "png",
-    "graph_attr": {"pad": "0.8", "nodesep": "1.0", "ranksep": "3.0", "bgcolor": "white", "dpi": "300", "forcelabels": "true"},
-    "node_attr": {"fontsize": "13", "fontname": "Helvetica Bold"},
-    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0", "minlen": "2"},
-}
 
 
 def part1():
-    with Diagram("Part 1 — Distributed Tracing", filename="part1_tracing", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        xray = XRay("X-Ray / ADOT")
-        cw = Cloudwatch("CloudWatch")
-        agent >> Edge(xlabel="spans", color="#DD6B20", style="bold") >> xray
-        xray >> Edge(xlabel="traces", color="#0073BB", style="bold") >> cw
+    with Diagram(filename="part1_tracing", **COMMON):
+        bot = agent("Agent")
+        xray = aws("X-Ray / ADOT", XRAY)
+        cw = aws("CloudWatch", CLOUDWATCH)
+        bot >> flow(ORANGE, "spans") >> xray
+        xray >> flow(BLUE, "traces") >> cw
     print("  ✓ part1_tracing.png")
 
 
 def part2():
-    with Diagram("Part 2 — CloudWatch Metrics", filename="part2_metrics", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        metrics = Cloudwatch("CloudWatch\nMetrics")
-        agent >> Edge(xlabel="latency, tokens,\nerrors", color="#0073BB", style="bold") >> metrics
+    with Diagram(filename="part2_metrics", **COMMON):
+        bot = agent("Agent")
+        metrics = aws("CloudWatch\nMetrics", CLOUDWATCH)
+        bot >> flow(BLUE, "latency, tokens,\nerrors") >> metrics
     print("  ✓ part2_metrics.png")
 
 
 def part3():
-    with Diagram("Part 3 — Loop Detection", filename="part3_loop_detection", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        alarms = Cloudwatch("CloudWatch\nAlarms")
-        sns = SNS("SNS Alert")
-        agent >> Edge(xlabel="tool call spike", color="#DC2626", style="bold") >> alarms
-        alarms >> Edge(xlabel="notify", color="#7C3AED", style="bold") >> sns
+    with Diagram(filename="part3_loop_detection", **COMMON):
+        bot = agent("Agent")
+        alarms = aws("CloudWatch\nAlarms", CLOUDWATCH)
+        sns = aws("SNS Alert", SNS)
+        bot >> flow(RED, "tool call spike") >> alarms
+        alarms >> flow(PURPLE, "notify") >> sns
     print("  ✓ part3_loop_detection.png")
 
 
 def part4():
-    with Diagram("Part 4 — Agent Evaluation", filename="part4_evaluation", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        judge = Custom("LLM Judge", ROBOT)
-        db = Dynamodb("Eval Results")
-        metrics = Cloudwatch("Quality\nMetrics")
-        agent >> Edge(xlabel="response", color="#7C3AED", style="bold") >> judge
-        judge >> Edge(xlabel="scores", color="#0073BB", style="bold") >> db
-        judge >> Edge(xlabel="quality", color="#059669", style="dashed") >> metrics
+    with Diagram(filename="part4_evaluation", **COMMON):
+        bot = agent("Agent")
+        judge = agent("LLM Judge")
+        db = aws("Eval Results", DYNAMODB)
+        metrics = aws("Quality\nMetrics", CLOUDWATCH)
+        bot >> flow(PURPLE, "response") >> judge
+        judge >> flow(BLUE, "scores") >> db
+        judge >> flow(GREEN, "quality", dashed=True) >> metrics
     print("  ✓ part4_evaluation.png")
 
 
 def part5():
-    with Diagram("Part 5 — Unified Dashboard", filename="part5_dashboard", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        with Cluster("Signals", graph_attr={"bgcolor": "#f8f8f8", "style": "rounded"}):
-            traces = XRay("Traces")
-            metrics = Cloudwatch("Metrics")
-            alarms = Cloudwatch("Alarms")
-        dashboard = Cloudwatch("Dashboard")
-        agent >> Edge(color="#7C3AED", style="bold") >> traces
-        agent >> Edge(color="#0073BB", style="bold") >> metrics
-        agent >> Edge(color="#DC2626", style="bold") >> alarms
-        traces >> Edge(color="#232F3E", style="dashed") >> dashboard
-        metrics >> Edge(color="#232F3E", style="dashed") >> dashboard
-        alarms >> Edge(color="#232F3E", style="dashed") >> dashboard
+    with Diagram(filename="part5_dashboard", **COMMON):
+        bot = agent("Agent")
+        with Cluster("Signals", graph_attr=group("gray")):
+            traces = aws("Traces", XRAY)
+            metrics = aws("Metrics", CLOUDWATCH)
+            alarms = aws("Alarms", CLOUDWATCH)
+        dashboard = aws("Dashboard", CLOUDWATCH)
+        bot >> flow(PURPLE) >> traces
+        bot >> flow(BLUE) >> metrics
+        bot >> flow(RED) >> alarms
+        traces >> flow(NAVY, dashed=True) >> dashboard
+        metrics >> flow(NAVY, dashed=True) >> dashboard
+        alarms >> flow(NAVY, dashed=True) >> dashboard
     print("  ✓ part5_dashboard.png")
 
 
 if __name__ == "__main__":
+    os.chdir(HERE)
     print("Module 4: Observability & Evaluation")
     part1()
     part2()

@@ -1,83 +1,81 @@
-"""Generate per-part architecture diagrams for Module 1 using diagrams library built-in AWS icons."""
+"""Generate per-part architecture diagrams for Module 1 (shared style: demos/diagram_style.py)."""
 
-from diagrams import Diagram, Cluster, Edge
-from diagrams.custom import Custom
-from diagrams.aws.ml import Bedrock
+import os
+import sys
 
-import os as _os
-ICONS = _os.environ.get(
-    "MLADAS_ICONS",
-    _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))), "aws-icons", "custom"),
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+
+from diagrams import Diagram, Cluster  # noqa: E402
+from diagram_style import (  # noqa: E402
+    COMMON, NAVY, BLUE, RED, ORANGE, PURPLE, AGENTCORE,
+    group, flow, aws, user, agent, tool,
 )
-USER = f"{ICONS}/user.png"
-ROBOT = f"{ICONS}/robot.png"
-TOOL = f"{ICONS}/tool.png"
-
-COMMON = {
-    "show": False,
-    "direction": "LR",
-    "outformat": "png",
-    "graph_attr": {"pad": "0.8", "nodesep": "1.0", "ranksep": "3.0", "bgcolor": "white", "dpi": "300", "forcelabels": "true"},
-    "node_attr": {"fontsize": "13", "fontname": "Helvetica Bold"},
-    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0", "minlen": "2"},
-}
 
 
 def part1():
-    with Diagram("Part 1 — Single Agent (Overloaded)", filename="part1_single_agent", **COMMON):
-        user = Custom("Customer", USER)
-        agent = Custom("Single Agent", ROBOT)
-        user >> Edge(xlabel="billing + tech +\nproduct queries", color="#DC2626", style="bold") >> agent
+    with Diagram(filename="part1_single_agent", **COMMON):
+        customer = user("Customer")
+        with Cluster("One shared context window", graph_attr=group("orange")):
+            single = agent("Single Agent")
+            billing = tool("Billing rules")
+            tech = tool("Tech procedures")
+            product = tool("Product catalog")
+        customer >> flow(RED, "billing + tech +\nproduct queries") >> single
+        for domain in (billing, tech, product):
+            single >> flow(ORANGE, dashed=True) >> domain
     print("  ✓ part1_single_agent.png")
 
 
 def part2():
-    with Diagram("Part 2 — Orchestrator Pattern", filename="part2_orchestrator", **COMMON):
-        user = Custom("Customer", USER)
-        orch = Custom("Orchestrator", ROBOT)
-        with Cluster("Specialist Agents", graph_attr={"bgcolor": "#f0f8ff", "style": "rounded"}):
-            billing = Custom("Billing", ROBOT)
-            tech = Custom("Tech Support", ROBOT)
-            product = Custom("Product", ROBOT)
-        user >> Edge(color="#232F3E", style="bold") >> orch
-        orch >> Edge(xlabel="route", color="#0073BB", style="bold") >> billing
-        orch >> Edge(color="#0073BB", style="bold") >> tech
-        orch >> Edge(color="#0073BB", style="bold") >> product
+    with Diagram(filename="part2_orchestrator", **COMMON):
+        customer = user("Customer")
+        orch = agent("Orchestrator")
+        with Cluster("Specialist Agents", graph_attr=group("blue")):
+            billing = agent("Billing")
+            tech = agent("Tech Support")
+            product = agent("Product")
+        customer >> flow(NAVY, "query") >> orch
+        orch >> flow(BLUE, "route") >> billing
+        orch >> flow(BLUE) >> tech
+        orch >> flow(BLUE) >> product
     print("  ✓ part2_orchestrator.png")
 
 
 def part3():
-    with Diagram("Part 3 — Agent-as-Tool (MCP)", filename="part3_agent_as_tool", **COMMON):
-        with Cluster("Consumer Agents", graph_attr={"bgcolor": "#f0f8ff", "style": "rounded"}):
-            sales = Custom("Sales Agent", ROBOT)
-            support = Custom("Support Agent", ROBOT)
-        with Cluster("Shared Tools (MCP)", graph_attr={"bgcolor": "#fff8f0", "style": "rounded"}):
-            lookup = Custom("product_lookup", TOOL)
-            compat = Custom("compatibility_check", TOOL)
-            order = Custom("order_status", TOOL)
-        sales >> Edge(color="#DD6B20", style="bold") >> lookup
-        sales >> Edge(color="#DD6B20", style="bold") >> compat
-        support >> Edge(color="#DD6B20", style="bold") >> lookup
-        support >> Edge(color="#DD6B20", style="bold") >> compat
-        support >> Edge(color="#DD6B20", style="bold") >> order
+    with Diagram(filename="part3_agent_as_tool", **COMMON):
+        with Cluster("Consumer Agents", graph_attr=group("blue")):
+            sales = agent("Sales Agent")
+            support = agent("Support Agent")
+        with Cluster("Shared Tools (MCP)", graph_attr=group("orange")):
+            lookup = tool("product_lookup")
+            compat = tool("compatibility_check")
+            order = tool("order_status")
+        sales >> flow(BLUE) >> lookup
+        sales >> flow(BLUE) >> compat
+        support >> flow(ORANGE) >> lookup
+        support >> flow(ORANGE) >> compat
+        support >> flow(ORANGE) >> order
     print("  ✓ part3_agent_as_tool.png")
 
 
 def part4():
-    with Diagram("Part 4 — Shared Memory", filename="part4_shared_memory", **COMMON):
-        diag = Custom("Diagnostic", ROBOT)
-        resolve = Custom("Resolution", ROBOT)
-        followup = Custom("Follow-up", ROBOT)
-        memory = Bedrock("AgentCore\nMemory")
-        diag >> Edge(xlabel="handoff", color="#232F3E", style="bold") >> resolve
-        resolve >> Edge(xlabel="handoff", color="#232F3E", style="bold") >> followup
-        diag >> Edge(color="#7C3AED", style="dashed") >> memory
-        resolve >> Edge(color="#7C3AED", style="dashed") >> memory
-        followup >> Edge(color="#7C3AED", style="dashed") >> memory
+    with Diagram(filename="part4_shared_memory", **COMMON):
+        with Cluster("Support Pipeline", graph_attr=group("blue")):
+            diag = agent("Diagnostic")
+            resolve = agent("Resolution")
+            followup = agent("Follow-up")
+        memory = aws("AgentCore\nMemory", AGENTCORE)
+        diag >> flow(NAVY, "handoff") >> resolve
+        resolve >> flow(NAVY, "handoff") >> followup
+        diag >> flow(PURPLE, "read / write", dashed=True) >> memory
+        resolve >> flow(PURPLE, dashed=True) >> memory
+        followup >> flow(PURPLE, dashed=True) >> memory
     print("  ✓ part4_shared_memory.png")
 
 
 if __name__ == "__main__":
+    os.chdir(HERE)
     print("Module 1: Multi-Agent Architecture")
     part1()
     part2()

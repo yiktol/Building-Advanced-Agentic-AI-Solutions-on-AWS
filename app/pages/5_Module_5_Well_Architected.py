@@ -6,8 +6,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from style import inject_css, part_header, live_services_caption
-from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, MODEL_ID
+from style import inject_css, part_header, live_services_caption, show_diagram, render_sample_prompts, take_sample_prompt
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, MODEL_ID, stream_chat
 from strands import Agent, tool
 
 st.set_page_config(page_title="Module 5: Well-Architected", page_icon="5️⃣", layout="wide")
@@ -25,26 +25,18 @@ def _do_cost_query(query, tiering_enabled):
     with st.chat_message("user"):
         st.markdown(query)
     with st.chat_message("assistant"):
-        with st.spinner(f"Processing ({tier} tier)..."):
-            # Use different models based on tier
-            if tier == "economy":
-                model = make_model("generation", model_id="apac.amazon.nova-micro-v1:0", max_tokens=1024)
-            else:
-                model = make_model("generation", max_tokens=2048)
-            agent = Agent(model=model, system_prompt="You are a TechMart assistant. Pro 15 $799, Air $599, Titan $1299, Hub $149. Be concise.")
-            import time as _t
-            _s = _t.time()
-            result = agent(query)
-            wall_time = int((_t.time() - _s) * 1000)
-            resp = str(result)
-            # Get real token metrics
-            try:
-                invocations = result.metrics.agent_invocations
-                usage = invocations[-1].usage if invocations else result.metrics.accumulated_usage
-                tokens = usage.get("totalTokens", len(resp) // 4)
-            except Exception:
-                tokens = len(resp) // 4
-        st.markdown(resp)
+        # Use different models based on tier
+        if tier == "economy":
+            model = make_model("generation", model_id="apac.amazon.nova-micro-v1:0", max_tokens=1024)
+        else:
+            model = make_model("generation", max_tokens=2048)
+        agent = Agent(model=model, system_prompt="You are a TechMart assistant. Pro 15 $799, Air $599, Titan $1299, Hub $149. Be concise.")
+        import time as _t
+        _s = _t.time()
+        resp, metrics = stream_chat(agent, query, f"Processing ({tier} tier)...")
+        wall_time = int((_t.time() - _s) * 1000)
+        # Real token metrics when available, else a rough estimate
+        tokens = metrics.get("totalTokens") or len(resp) // 4
 
     # Calculate cost
     rate = 0.000003 if tier == "economy" else 0.000015
@@ -80,13 +72,12 @@ with st.sidebar:
 if part == "Part 1 — E-Commerce":
     part_header("Multi-agent e-commerce", "Full orchestrated system with 4 specialist agents and operational metrics.")
 
-    suggestions = ["Laptops under $800?", "Hub dropping Wi-Fi v2.1.3", "Express shipping cost?"]
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part1_ecommerce.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found.")
         with tab_about:
@@ -96,9 +87,7 @@ The capstone system: an orchestrator routing to four specialists (billing, tech,
 **Try it:** Run the sample queries to see the full orchestrated system respond end to end.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m5p1')
         with tab_code:
             st.code("""
 from strands import Agent, tool
@@ -189,28 +178,12 @@ orchestrator = Agent(
                 mc2.metric("⬆️ Output", m.get("outputTokens", 0))
                 mc3.metric("⏱️ Latency", f"{m.get('latencyMs', 0)}ms")
 
-    if not st.session_state.m5p1_msgs:
-        selected = st.pills("Try:", suggestions, key="m5p1_pills")
-        if selected:
-            st.session_state.m5p1_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Routing to specialists..."):
-                    resp, metrics = chat_response_with_metrics(st.session_state.m5p1_agent, selected)
-                st.markdown(resp)
-            st.session_state.m5p1_msgs.append({"role": "assistant", "content": resp})
-            st.session_state.m5p1_metrics.append(metrics)
-            st.rerun()
-
-    if prompt := st.chat_input("Chat with e-commerce system...", submit_mode="disable"):
+    if prompt := (st.chat_input("Chat with e-commerce system...", submit_mode="disable") or take_sample_prompt('m5p1')):
         st.session_state.m5p1_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Routing to specialists..."):
-                resp, metrics = chat_response_with_metrics(st.session_state.m5p1_agent, prompt)
-            st.markdown(resp)
+            resp, metrics = stream_chat(st.session_state.m5p1_agent, prompt, "Routing to specialists...")
         st.session_state.m5p1_msgs.append({"role": "assistant", "content": resp})
         st.session_state.m5p1_metrics.append(metrics)
 
@@ -221,13 +194,12 @@ orchestrator = Agent(
 elif part == "Part 2 — Reliability":
     part_header("Reliability — Fault tolerance", "Break agents, watch graceful degradation with fallback and retry.")
 
-    suggestions = ["What laptops available?", "Refund on last order?", "Hub disconnecting from Wi-Fi"]
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part4_reliability.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found.")
         with tab_about:
@@ -237,9 +209,7 @@ Per-specialist circuit breakers isolate failures and fallback agents keep the sy
 **Try it:** Use `break product`, ask a product question to see the fallback respond, then `fix product` to recover — `status` shows each breaker's state.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m5p2')
         with tab_code:
             st.code("""
 # Reliability pattern: retry + fallback
@@ -314,28 +284,12 @@ def call_specialist_with_retry(specialist, query, max_retries=1):
             mc1.metric("⏱️ Latency", f"{m.get('latencyMs', 0)}ms")
             mc2.metric("Status", "⚠️ Degraded" if degraded else "✅ Normal")
 
-    if not st.session_state.m5p2_msgs:
-        selected = st.pills("Try:", suggestions, key="m5p2_pills")
-        if selected:
-            st.session_state.m5p2_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Routing (with fault tolerance)..."):
-                    resp, metrics = chat_response_with_metrics(orch, selected)
-                st.markdown(resp)
-            st.session_state.m5p2_msgs.append({"role": "assistant", "content": resp})
-            st.session_state.m5p2_metrics.append(metrics)
-            st.rerun()
-
-    if prompt := st.chat_input("Break agents then ask...", submit_mode="disable"):
+    if prompt := (st.chat_input("Break agents then ask...", submit_mode="disable") or take_sample_prompt('m5p2')):
         st.session_state.m5p2_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Routing (with fault tolerance)..."):
-                resp, metrics = chat_response_with_metrics(orch, prompt)
-            st.markdown(resp)
+            resp, metrics = stream_chat(orch, prompt, "Routing (with fault tolerance)...")
         st.session_state.m5p2_msgs.append({"role": "assistant", "content": resp})
         st.session_state.m5p2_metrics.append(metrics)
 
@@ -346,13 +300,12 @@ def call_specialist_with_retry(specialist, query, max_retries=1):
 elif part == "Part 3 — Cost optimization":
     part_header("Cost optimization", "Smart model tiering: simple queries → economy model, complex → premium.")
 
-    suggestions = ["Hi", "What's the Hub price?", "Compare Pro 15 and Titan for video editing"]
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module5-well-architected", "diagrams", "part5_cost_optimization.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found.")
         with tab_about:
@@ -362,9 +315,7 @@ Smart model tiering routes simple queries to an economy model and complex ones t
 **Try it:** Send a simple then a complex query and check `cost` / `budget` to see the tier split and the savings.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m5p3')
         with tab_code:
             st.code("""
 # Cost optimization: route by complexity
@@ -416,10 +367,5 @@ agent = Agent(model=BedrockModel(model_id=model_id), ...)
             mc3.metric("Cost", f"${c['cost']:.6f}")
             mc4.metric("Latency", f"{c.get('latencyMs', 0)}ms")
 
-    if not st.session_state.m5p3_msgs:
-        selected = st.pills("Try:", suggestions, key="m5p3_pills")
-        if selected:
-            _do_cost_query(selected, tiering)
-
-    if prompt := st.chat_input("Ask something (simple or complex)...", submit_mode="disable"):
+    if prompt := (st.chat_input("Ask something (simple or complex)...", submit_mode="disable") or take_sample_prompt('m5p3')):
         _do_cost_query(prompt, tiering)

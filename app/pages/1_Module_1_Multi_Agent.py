@@ -5,9 +5,9 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from style import inject_css, part_header, live_services_caption
+from style import inject_css, part_header, live_services_caption, show_diagram, render_sample_prompts, take_sample_prompt
 import agent_utils
-from agent_utils import create_agent, chat_response, chat_stream, make_model, MODEL_ID
+from agent_utils import create_agent, chat_response, chat_stream, make_model, MODEL_ID, stream_chat, stream_multiagent
 from strands import Agent, tool
 
 st.set_page_config(page_title="Module 1: Multi-Agent", page_icon="1️⃣", layout="wide")
@@ -31,7 +31,35 @@ with st.sidebar:
         for key in list(st.session_state.keys()):
             if key.startswith("m1") and key.endswith("_msgs"):
                 st.session_state[key] = []
+            elif key.startswith("m1") and key.endswith("_judgments"):
+                st.session_state[key] = {}
         st.rerun()
+
+
+def render_chat_with_judge(msgs_key: str, judgments_key: str, judge_fn) -> None:
+    """Render chat history with a manual "Run Judge" button under each assistant reply.
+
+    Judgments are stored in a dict keyed by the assistant message index, so the
+    user can judge any reply on demand (and in any order).
+    """
+    if not isinstance(st.session_state.get(judgments_key), dict):
+        st.session_state[judgments_key] = {}
+    msgs = st.session_state[msgs_key]
+    judgments = st.session_state[judgments_key]
+
+    for idx, msg in enumerate(msgs):
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+        if msg["role"] != "assistant":
+            continue
+        if idx in judgments:
+            with st.expander("🧑‍⚖️ Judge Evaluation", expanded=False):
+                st.markdown(judgments[idx])
+        elif st.button("🧑‍⚖️ Run Judge", key=f"{judgments_key}_btn_{idx}", help="Evaluate this response with the Judge Model"):
+            user_query = msgs[idx - 1]["content"] if idx > 0 and msgs[idx - 1]["role"] == "user" else ""
+            with st.spinner("Judge Model evaluating..."):
+                judgments[idx] = judge_fn(user_query, msg["content"])
+            st.rerun()
 
 # =============================================================================
 # PART 1: Single Agent
@@ -40,29 +68,25 @@ if part == "Part 1 — Single Agent":
     part_header("Single agent (cognitive load)", "One agent handles billing, tech support, and product queries.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part1_single_agent.png")
-    suggestions = ["Charged $9.99, cancelled last week", "Hub disconnecting, firmware v2.1.3", "Laptop under $800 for editing"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
             st.markdown("""
 One agent handles billing, tech support, and product questions at once. As the conversation spans domains it mixes up procedures and can't go deep on any topic — context fills with cross-domain history and quality drops.
 
-**Try it:** Run the 5-query sequence (billing → Wi-Fi → laptop → refund → compatibility) and watch the Judge scores degrade as cognitive load builds.
+**Try it:** Run the 5-query sequence (billing → Wi-Fi → laptop → refund → compatibility) then click **🧑‍⚖️ Run Judge** under each reply to watch the scores degrade as cognitive load builds.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m1p1')
     if "m1p1_agent" not in st.session_state:
         st.session_state.m1p1_agent = None
         st.session_state.m1p1_msgs = []
-        st.session_state.m1p1_judgments = []
+        st.session_state.m1p1_judgments = {}
 
     # --- Judge Model Configuration ---
     JUDGE_SYSTEM_PROMPT = """You are a Judge Model evaluating an AI customer service agent's response for signs of COGNITIVE LOAD issues.
@@ -121,47 +145,17 @@ PRODUCTS: TechMart Pro 15 ($799), Air ($599), Titan ($1299), Hub ($149).
 Always verify identity before account changes."""
         )
 
-    for idx, msg in enumerate(st.session_state.m1p1_msgs):
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-        # Show judgment after assistant messages
-        if msg["role"] == "assistant":
-            judgment_idx = idx // 2  # Each pair (user, assistant) has one judgment
-            if judgment_idx < len(st.session_state.m1p1_judgments):
-                with st.expander(f"🧑‍⚖️ Judge Evaluation", expanded=False):
-                    st.markdown(st.session_state.m1p1_judgments[judgment_idx])
+    # Chat history; judge runs only when the user clicks "Run Judge"
+    render_chat_with_judge("m1p1_msgs", "m1p1_judgments", judge_response)
 
-    # Suggestion chips
-    if not st.session_state.m1p1_msgs:
-        selected = st.pills("Try:", suggestions, key="m1p1_pills")
-        if selected:
-            st.session_state.m1p1_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                resp = st.write_stream(chat_stream(st.session_state.m1p1_agent, selected))
-            st.session_state.m1p1_msgs.append({"role": "assistant", "content": resp})
-            # Judge evaluation
-            with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
-                with st.spinner("Judge Model evaluating..."):
-                    judgment = judge_response(selected, resp)
-                st.markdown(judgment)
-            st.session_state.m1p1_judgments.append(judgment)
-            st.rerun()
-
-    if prompt := st.chat_input("Chat with single agent...", submit_mode="disable"):
+    if prompt := (st.chat_input("Chat with single agent...", submit_mode="disable") or take_sample_prompt('m1p1')):
         st.session_state.m1p1_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            resp = st.write_stream(chat_stream(st.session_state.m1p1_agent, prompt))
+            resp, _ = stream_chat(st.session_state.m1p1_agent, prompt)
         st.session_state.m1p1_msgs.append({"role": "assistant", "content": resp})
-        # Judge evaluation
-        with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
-            with st.spinner("Judge Model evaluating..."):
-                judgment = judge_response(prompt, resp)
-            st.markdown(judgment)
-        st.session_state.m1p1_judgments.append(judgment)
+        st.rerun()  # re-render history so the "Run Judge" button appears
 
 # =============================================================================
 # PART 2: Orchestrator
@@ -170,29 +164,25 @@ elif part == "Part 2 — Orchestrator":
     part_header("Orchestrator pattern", "Centralized routing to specialist agents.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part2_orchestrator.png")
-    suggestions = ["Refund on order TM-78432", "Hub Wi-Fi keeps dropping", "Recommend a laptop"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
             st.markdown("""
 A central orchestrator routes each query to the right specialist (📋 billing, 🔧 tech, 🛍️ product). Specialists give deeper, more accurate answers without being polluted by unrelated context, and a compound query gets decomposed across specialists.
 
-**Try it:** Run the same prompts as Part 1 and compare the Judge scores against the single-agent baseline.
+**Try it:** Run the same prompts as Part 1, click **🧑‍⚖️ Run Judge** under each reply, and compare the scores against the single-agent baseline.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m1p2')
     if "m1p2_orch" not in st.session_state:
         st.session_state.m1p2_orch = None
         st.session_state.m1p2_msgs = []
-        st.session_state.m1p2_judgments = []
+        st.session_state.m1p2_judgments = {}
 
     # --- Judge Model for Orchestrator ---
     JUDGE_ORCH_SYSTEM_PROMPT = """You are a Judge Model evaluating an ORCHESTRATOR agent that routes customer queries to specialist agents (Billing, Tech Support, Product).
@@ -287,51 +277,17 @@ NEVER respond without first calling a tool. If you respond without calling a too
             tools=[ask_billing, ask_tech, ask_product],
         )
 
-    for idx, msg in enumerate(st.session_state.m1p2_msgs):
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-        # Show judgment after assistant messages
-        if msg["role"] == "assistant":
-            judgment_idx = idx // 2
-            if judgment_idx < len(st.session_state.m1p2_judgments):
-                with st.expander("🧑‍⚖️ Judge Evaluation", expanded=False):
-                    st.markdown(st.session_state.m1p2_judgments[judgment_idx])
+    # Chat history; judge runs only when the user clicks "Run Judge"
+    render_chat_with_judge("m1p2_msgs", "m1p2_judgments", judge_orchestrator_response)
 
-    # Suggestion chips
-    if not st.session_state.m1p2_msgs:
-        selected = st.pills("Try:", suggestions, key="m1p2_pills")
-        if selected:
-            st.session_state.m1p2_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Routing to specialists..."):
-                    resp = chat_response(st.session_state.m1p2_orch, selected)
-                st.markdown(resp)
-            st.session_state.m1p2_msgs.append({"role": "assistant", "content": resp})
-            # Judge evaluation
-            with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
-                with st.spinner("Judge Model evaluating..."):
-                    judgment = judge_orchestrator_response(selected, resp)
-                st.markdown(judgment)
-            st.session_state.m1p2_judgments.append(judgment)
-            st.rerun()
-
-    if prompt := st.chat_input("Chat with orchestrator...", submit_mode="disable"):
+    if prompt := (st.chat_input("Chat with orchestrator...", submit_mode="disable") or take_sample_prompt('m1p2')):
         st.session_state.m1p2_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Routing to specialists..."):
-                resp = chat_response(st.session_state.m1p2_orch, prompt)
-            st.markdown(resp)
+            resp, _ = stream_chat(st.session_state.m1p2_orch, prompt, "Routing to specialists...")
         st.session_state.m1p2_msgs.append({"role": "assistant", "content": resp})
-        # Judge evaluation
-        with st.expander("🧑‍⚖️ Judge Evaluation", expanded=True):
-            with st.spinner("Judge Model evaluating..."):
-                judgment = judge_orchestrator_response(prompt, resp)
-            st.markdown(judgment)
-        st.session_state.m1p2_judgments.append(judgment)
+        st.rerun()  # re-render history so the "Run Judge" button appears
 
 # =============================================================================
 # PART 3: Agent-as-Tool
@@ -344,7 +300,7 @@ elif part == "Part 3 — Agent-as-Tool":
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -354,14 +310,7 @@ A Sales agent and a Support agent reuse the *same* underlying tools (`product_lo
 **Try it:** Switch between the Sales and Support consumer agents and run each prompt set to see the shared tools reused.
 """)
         with tab_prompts:
-            st.caption("Sample prompts by consumer agent — click the matching pill in the chat below to run them.")
-            st.markdown("**Sales Agent**")
-            for _p in ["Look up TechMart Hub", "Hub + Camera compatible?"]:
-                st.markdown("- " + _p)
-            st.markdown("**Support Agent**")
-            for _p in ["Order TM-78432 status", "Hub + sensors compatible?"]:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m1p3')
     if "m1p3_agent" not in st.session_state:
         st.session_state.m1p3_agent = None
         st.session_state.m1p3_msgs = []
@@ -402,28 +351,12 @@ A Sales agent and a Support agent reuse the *same* underlying tools (`product_lo
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Suggestion chips
-    if not st.session_state.m1p3_msgs:
-        if new_type == "Sales":
-            suggestions = ["Look up TechMart Hub", "Hub + Camera compatible?"]
-        else:
-            suggestions = ["Order TM-78432 status", "Hub + sensors compatible?"]
-        selected = st.pills("Try:", suggestions, key="m1p3_pills")
-        if selected:
-            st.session_state.m1p3_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                resp = st.write_stream(chat_stream(st.session_state.m1p3_agent, selected))
-            st.session_state.m1p3_msgs.append({"role": "assistant", "content": resp})
-            st.rerun()
-
-    if prompt := st.chat_input(f"Chat with {new_type} Agent...", submit_mode="disable"):
+    if prompt := (st.chat_input(f"Chat with {new_type} Agent...", submit_mode="disable") or take_sample_prompt('m1p3')):
         st.session_state.m1p3_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            resp = st.write_stream(chat_stream(st.session_state.m1p3_agent, prompt))
+            resp, _ = stream_chat(st.session_state.m1p3_agent, prompt)
         st.session_state.m1p3_msgs.append({"role": "assistant", "content": resp})
 
 # =============================================================================
@@ -433,15 +366,11 @@ elif part == "Part 4 — Shared memory":
     part_header("Shared memory", "Agents collaborate via shared memory — like AgentCore Memory.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module1-multi-agent", "diagrams", "part4_shared_memory.png")
-    suggestions = [
-        "My TechMart Hub firmware v2.1.3 keeps dropping Wi-Fi every few minutes. I also added 2 motion sensors yesterday and they aren't appearing in the app.",
-        "My smart cameras keep going offline at night. I have 3 cameras connected through my TechMart Hub.",
-    ]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -451,10 +380,7 @@ Three agents (Diagnose → Resolve → Follow-up) collaborate by reading and wri
 **Try it:** Run the workflow and watch the 💾 (write) and 📖 (read) steps; the final audit trail shows distinct `actor_id`s — mirroring AgentCore Memory.
 """)
         with tab_prompts:
-            st.caption("Example issue descriptions — paste one into the box below.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m1p4', target_key="m1p4_issue", action_label="Use", note="Click **Use** to load an issue into the box below, then press 🚀 Start Workflow.")
     from agentcore_utils import AgentCoreMemory, get_agentcore_status
     status = get_agentcore_status()
     if status["memory"]:
@@ -551,8 +477,12 @@ elif part == "Part 5 — Graph & Swarm":
         **Graph pattern:** Researcher → Analyst → Writer pipeline. Each node receives the output of its dependencies.
         """)
 
-        with st.expander("📝 Code", expanded=False):
-            st.code("""
+        with st.expander("💡 Prompts & Code", expanded=False):
+            tab_prompts, tab_code = st.tabs(["💡 Prompts", "📝 Code"])
+            with tab_prompts:
+                render_sample_prompts('m1p5_graph')
+            with tab_code:
+                st.code("""
 from strands.multiagent.graph import GraphBuilder
 from strands import Agent
 
@@ -589,107 +519,55 @@ result = graph("Analyze solar energy market in Vietnam")
             with st.expander("✍️ Writer Output (Final)", expanded=True):
                 st.markdown(st.session_state.m1p5_graph_results.get("writer", ""))
 
-        if not st.session_state.m1p5_graph_msgs:
-            suggestions = ["Analyze solar energy market in Vietnam for 2025-2027", "Compare serverless vs containers for a startup", "Evaluate AI adoption in healthcare"]
-            selected = st.pills("Try:", suggestions, key="m1p5_graph_pills")
-            if selected:
-                st.session_state.m1p5_graph_msgs.append({"role": "user", "content": selected})
-                with st.chat_message("user"):
-                    st.markdown(selected)
-                with st.chat_message("assistant"):
-                    with st.status("Running Graph pipeline...", expanded=True):
-                        try:
-                            from strands.multiagent.graph import GraphBuilder
-
-                            st.write("🔬 **Researcher** gathering information...")
-                            researcher = create_agent("You are a Research Agent. Gather key facts, data points, and trends about the topic. Be concise — output 3-5 bullet points of findings.")
-                            st.write("📊 **Analyst** analyzing findings...")
-                            analyst = create_agent("You are an Analyst Agent. Take research findings and provide strategic analysis: opportunities, risks, and recommendations. Be concise.")
-                            st.write("✍️ **Writer** composing final report...")
-                            writer = create_agent("You are a Writer Agent. Take the analysis and write a clear, professional executive summary (3-4 paragraphs max).")
-
-                            builder = GraphBuilder()
-                            builder.add_node(researcher, node_id="researcher")
-                            builder.add_node(analyst, node_id="analyst")
-                            builder.add_node(writer, node_id="writer")
-                            builder.add_edge("researcher", "analyst")
-                            builder.add_edge("analyst", "writer")
-                            builder.set_entry_point("researcher")
-                            graph = builder.build()
-                            result = graph(selected)
-                            # Extract per-node text from GraphResult
-                            def _extract_node_text(node_result):
-                                try:
-                                    msg = node_result.result.message
-                                    content = msg.get('content', [])
-                                    return content[0].get('text', '') if content else ''
-                                except Exception:
-                                    return str(node_result)
-
-                            node_results = result.results if hasattr(result, 'results') else {}
-                            researcher_text = _extract_node_text(node_results['researcher']) if 'researcher' in node_results else ""
-                            analyst_text = _extract_node_text(node_results['analyst']) if 'analyst' in node_results else ""
-                            writer_text = _extract_node_text(node_results['writer']) if 'writer' in node_results else ""
-                            final_output = writer_text or analyst_text or researcher_text or "No output generated."
-                            st.session_state.m1p5_graph_results = {
-                                "researcher": researcher_text,
-                                "analyst": analyst_text,
-                                "writer": final_output,
-                            }
-                        except Exception as e:
-                            final_output = f"Error: {e}"
-                            st.session_state.m1p5_graph_results = {}
-                    st.markdown(final_output)
-                st.session_state.m1p5_graph_msgs.append({"role": "assistant", "content": final_output})
-                st.rerun()
-
-        if prompt := st.chat_input("Enter a topic for the Graph pipeline...", key="m1p5_graph_input"):
+        if prompt := (st.chat_input("Enter a topic for the Graph pipeline...", key="m1p5_graph_input") or take_sample_prompt('m1p5_graph')):
             st.session_state.m1p5_graph_msgs.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                with st.status("Running Graph pipeline...", expanded=True):
-                    try:
-                        from strands.multiagent.graph import GraphBuilder
+                # Researcher/Analyst stream inside the status box; the Writer's
+                # final report streams straight into the chat bubble below it.
+                status = st.status("Running Graph pipeline...", expanded=True)
+                body = st.container()
+                labels = {"researcher": "🔬 Researcher", "analyst": "📊 Analyst", "writer": "✍️ Writer"}
+                try:
+                    from strands.multiagent.graph import GraphBuilder
 
-                        st.write("🔬 **Researcher** gathering information...")
-                        researcher = create_agent("You are a Research Agent. Gather key facts, data points, and trends about the topic. Be concise — output 3-5 bullet points of findings.")
-                        st.write("📊 **Analyst** analyzing findings...")
-                        analyst = create_agent("You are an Analyst Agent. Take research findings and provide strategic analysis: opportunities, risks, and recommendations. Be concise.")
-                        st.write("✍️ **Writer** composing final report...")
-                        writer = create_agent("You are a Writer Agent. Take the analysis and write a clear, professional executive summary (3-4 paragraphs max).")
+                    researcher = create_agent("You are a Research Agent. Gather key facts, data points, and trends about the topic. Be concise — output 3-5 bullet points of findings.")
+                    analyst = create_agent("You are an Analyst Agent. Take research findings and provide strategic analysis: opportunities, risks, and recommendations. Be concise.")
+                    writer = create_agent("You are a Writer Agent. Take the analysis and write a clear, professional executive summary (3-4 paragraphs max).")
 
-                        builder = GraphBuilder()
-                        builder.add_node(researcher, node_id="researcher")
-                        builder.add_node(analyst, node_id="analyst")
-                        builder.add_node(writer, node_id="writer")
-                        builder.add_edge("researcher", "analyst")
-                        builder.add_edge("analyst", "writer")
-                        builder.set_entry_point("researcher")
-                        graph = builder.build()
-                        result = graph(prompt)
-                        def _extract_node_text(node_result):
-                            try:
-                                msg = node_result.result.message
-                                content = msg.get('content', [])
-                                return content[0].get('text', '') if content else ''
-                            except Exception:
-                                return str(node_result)
+                    builder = GraphBuilder()
+                    builder.add_node(researcher, node_id="researcher")
+                    builder.add_node(analyst, node_id="analyst")
+                    builder.add_node(writer, node_id="writer")
+                    builder.add_edge("researcher", "analyst")
+                    builder.add_edge("analyst", "writer")
+                    builder.set_entry_point("researcher")
+                    graph = builder.build()
 
-                        node_results = result.results if hasattr(result, 'results') else {}
-                        researcher_text = _extract_node_text(node_results['researcher']) if 'researcher' in node_results else ""
-                        analyst_text = _extract_node_text(node_results['analyst']) if 'analyst' in node_results else ""
-                        writer_text = _extract_node_text(node_results['writer']) if 'writer' in node_results else ""
-                        final_output = writer_text or analyst_text or researcher_text or "No output generated."
-                        st.session_state.m1p5_graph_results = {
-                            "researcher": researcher_text,
-                            "analyst": analyst_text,
-                            "writer": final_output,
-                        }
-                    except Exception as e:
-                        final_output = f"Error: {e}"
-                        st.session_state.m1p5_graph_results = {}
-                st.markdown(final_output)
+                    _, texts = stream_multiagent(
+                        graph, prompt,
+                        containers={"researcher": status, "analyst": status, "writer": body},
+                        labels={"researcher": labels["researcher"], "analyst": labels["analyst"]},
+                        on_node_start=lambda node: status.update(label=f"Running Graph pipeline — {labels.get(node, node)}..."),
+                    )
+                    researcher_text = texts.get("researcher", "")
+                    analyst_text = texts.get("analyst", "")
+                    writer_text = texts.get("writer", "")
+                    final_output = writer_text or analyst_text or researcher_text or "No output generated."
+                    if not writer_text:
+                        body.markdown(final_output)
+                    st.session_state.m1p5_graph_results = {
+                        "researcher": researcher_text,
+                        "analyst": analyst_text,
+                        "writer": final_output,
+                    }
+                    status.update(label="Graph pipeline complete", state="complete", expanded=False)
+                except Exception as e:
+                    final_output = f"Error: {e}"
+                    st.session_state.m1p5_graph_results = {}
+                    status.update(label="Graph pipeline failed", state="error")
+                    body.markdown(final_output)
             st.session_state.m1p5_graph_msgs.append({"role": "assistant", "content": final_output})
 
     elif pattern == "Swarm":
@@ -697,8 +575,12 @@ result = graph("Analyze solar energy market in Vietnam")
         **Swarm pattern:** Agents autonomously decide when to hand off. All agents share full context and coordinate freely.
         """)
 
-        with st.expander("📝 Code", expanded=False):
-            st.code("""
+        with st.expander("💡 Prompts & Code", expanded=False):
+            tab_prompts, tab_code = st.tabs(["💡 Prompts", "📝 Code"])
+            with tab_prompts:
+                render_sample_prompts('m1p5_swarm')
+            with tab_code:
+                st.code("""
 from strands.multiagent.swarm import Swarm
 from strands import Agent
 
@@ -717,85 +599,39 @@ result = swarm("Evaluate launching an AI product in APAC")
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        if not st.session_state.m1p5_swarm_msgs:
-            suggestions = ["Evaluate launching an AI product in APAC", "Should we open-source our SDK?", "Migrate to microservices or stay monolith?"]
-            selected = st.pills("Try:", suggestions, key="m1p5_swarm_pills")
-            if selected:
-                st.session_state.m1p5_swarm_msgs.append({"role": "user", "content": selected})
-                with st.chat_message("user"):
-                    st.markdown(selected)
-                with st.chat_message("assistant"):
-                    with st.status("Swarm agents collaborating...", expanded=True):
-                        try:
-                            from strands.multiagent.swarm import Swarm
-
-                            st.write("🌟 **Optimist** seeing opportunities...")
-                            optimist = create_agent("You are the Optimist. Identify opportunities, upsides, and reasons to proceed. Be concise (3-4 points). When you've made your case, hand off to the next agent.", name="Optimist")
-                            st.write("⚠️ **Critic** identifying risks...")
-                            critic = create_agent("You are the Critic. Identify risks, downsides, and potential failure modes. Be concise (3-4 points). When done, hand off to the next agent.", name="Critic")
-                            st.write("🎯 **Strategist** synthesizing...")
-                            strategist = create_agent("You are the Strategist. Synthesize the optimist and critic views into a balanced recommendation with concrete next steps. Be concise.", name="Strategist")
-
-                            swarm = Swarm(nodes=[optimist, critic, strategist])
-                            result = swarm(selected)
-                            # Extract text from SwarmResult
-                            try:
-                                node_results = result.results if hasattr(result, 'results') else {}
-                                # Get the last agent's output
-                                texts = []
-                                for node_id in node_results:
-                                    nr = node_results[node_id]
-                                    try:
-                                        msg = nr.result.message
-                                        content = msg.get('content', [])
-                                        texts.append(content[0].get('text', ''))
-                                    except Exception:
-                                        pass
-                                final_output = "\n\n".join(texts) if texts else str(result)
-                            except Exception:
-                                final_output = str(result)
-                        except Exception as e:
-                            final_output = f"Error: {e}"
-                    st.markdown(final_output)
-                st.session_state.m1p5_swarm_msgs.append({"role": "assistant", "content": final_output})
-                st.rerun()
-
-        if prompt := st.chat_input("Enter a decision for the Swarm to debate...", key="m1p5_swarm_input"):
+        if prompt := (st.chat_input("Enter a decision for the Swarm to debate...", key="m1p5_swarm_input") or take_sample_prompt('m1p5_swarm')):
             st.session_state.m1p5_swarm_msgs.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                with st.status("Swarm agents collaborating...", expanded=True):
-                    try:
-                        from strands.multiagent.swarm import Swarm
+                # The status box tracks handoffs; each agent's turn streams into
+                # the chat bubble under its own heading as it speaks.
+                status = st.status("Swarm agents collaborating...", expanded=True)
+                body = st.container()
+                labels = {"Optimist": "🌟 Optimist", "Critic": "⚠️ Critic", "Strategist": "🎯 Strategist"}
 
-                        st.write("🌟 **Optimist** seeing opportunities...")
-                        optimist = create_agent("You are the Optimist. Identify opportunities, upsides, and reasons to proceed. Be concise (3-4 points). When you've made your case, hand off to the next agent.", name="Optimist")
-                        st.write("⚠️ **Critic** identifying risks...")
-                        critic = create_agent("You are the Critic. Identify risks, downsides, and potential failure modes. Be concise (3-4 points). When done, hand off to the next agent.", name="Critic")
-                        st.write("🎯 **Strategist** synthesizing...")
-                        strategist = create_agent("You are the Strategist. Synthesize the optimist and critic views into a balanced recommendation with concrete next steps. Be concise.", name="Strategist")
+                def _on_swarm_node(node):
+                    status.update(label=f"Swarm agents collaborating — {labels.get(node, node)} speaking...")
+                    status.write(f"→ **{labels.get(node, node)}** has the floor")
 
-                        swarm = Swarm(nodes=[optimist, critic, strategist])
-                        result = swarm(prompt)
-                        # Extract text from SwarmResult
-                        try:
-                            node_results = result.results if hasattr(result, 'results') else {}
-                            texts = []
-                            for node_id in node_results:
-                                nr = node_results[node_id]
-                                try:
-                                    msg = nr.result.message
-                                    content = msg.get('content', [])
-                                    texts.append(content[0].get('text', ''))
-                                except Exception:
-                                    pass
-                            final_output = "\n\n".join(texts) if texts else str(result)
-                        except Exception:
-                            final_output = str(result)
-                    except Exception as e:
-                        final_output = f"Error: {e}"
-                st.markdown(final_output)
+                try:
+                    from strands.multiagent.swarm import Swarm
+
+                    optimist = create_agent("You are the Optimist. Identify opportunities, upsides, and reasons to proceed. Be concise (3-4 points). When you've made your case, hand off to the next agent.", name="Optimist")
+                    critic = create_agent("You are the Critic. Identify risks, downsides, and potential failure modes. Be concise (3-4 points). When done, hand off to the next agent.", name="Critic")
+                    strategist = create_agent("You are the Strategist. Synthesize the optimist and critic views into a balanced recommendation with concrete next steps. Be concise.", name="Strategist")
+
+                    swarm = Swarm(nodes=[optimist, critic, strategist])
+                    result, texts = stream_multiagent(swarm, prompt, containers={"*": body}, labels=labels, on_node_start=_on_swarm_node)
+                    parts = [f"**{labels.get(n, n)}**\n\n{t}" for n, t in texts.items() if t.strip()]
+                    final_output = "\n\n".join(parts) if parts else (str(result) if result is not None else "No output generated.")
+                    if not parts:
+                        body.markdown(final_output)
+                    status.update(label="Swarm finished", state="complete", expanded=False)
+                except Exception as e:
+                    final_output = f"Error: {e}"
+                    status.update(label="Swarm failed", state="error")
+                    body.markdown(final_output)
             st.session_state.m1p5_swarm_msgs.append({"role": "assistant", "content": final_output})
 
     st.caption(":material/info: Graph uses `GraphBuilder` for dependency-based execution. Swarm uses autonomous agent handoffs.")
@@ -857,9 +693,7 @@ elif part == "Auto-run Walkthrough":
             with st.chat_message("user"):
                 st.markdown(query)
             with st.chat_message("assistant"):
-                with st.spinner("Orchestrator routing..."):
-                    resp = chat_response(st.session_state.m1_walk_orch, query)
-                st.markdown(resp)
+                resp, _ = stream_chat(st.session_state.m1_walk_orch, query, "Orchestrator routing...")
             st.session_state.m1_walkthrough_msgs.append({"role": "assistant", "content": resp})
             st.session_state.m1_walkthrough_step += 1
             st.rerun()

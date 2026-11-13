@@ -6,8 +6,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
-from style import inject_css, part_header, live_services_caption
-from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, MODEL_ID
+from style import inject_css, part_header, live_services_caption, show_diagram, render_sample_prompts, take_sample_prompt
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, MODEL_ID, stream_chat
 from strands import Agent, tool
 from strands.agent.conversation_manager import SummarizingConversationManager
 
@@ -42,12 +42,11 @@ if part == "Part 1 — Context Growth":
     part_header("Context as a finite resource", "Watch token count grow with each exchange.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part1_context_exhaustion.png")
-    suggestions = ["Plan retreat for 50 in Bali", "Budget is $150K, break it down", "12 vegetarians, 3 mobility issues"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -57,10 +56,7 @@ Context is a finite resource. As a long conversation accumulates, token counts r
 **Try it:** Build up the multi-turn retreat-planning prompts and watch the token counter and context-window progress bar climb with each exchange.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m2p1')
     if "m2p1_agent" not in st.session_state:
         st.session_state.m2p1_agent = None
         st.session_state.m2p1_msgs = []
@@ -104,29 +100,12 @@ Context is a finite resource. As a long conversation accumulates, token counts r
         context_pct = min(latest.get('inputTokens', 0) / 128000, 1.0)
         st.progress(context_pct, text=f"Context window usage: {latest.get('inputTokens', 0):,} / 128,000 tokens ({context_pct:.1%})")
 
-    # Suggestion chips
-    if not st.session_state.m2p1_msgs:
-        selected = st.pills("Try:", suggestions, key="m2p1_pills")
-        if selected:
-            st.session_state.m2p1_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    resp, metrics = chat_response_with_metrics(st.session_state.m2p1_agent, selected)
-                st.markdown(resp)
-            st.session_state.m2p1_msgs.append({"role": "assistant", "content": resp})
-            st.session_state.m2p1_metrics.append(metrics)
-            st.rerun()
-
-    if prompt := st.chat_input("Plan a trip...", submit_mode="disable"):
+    if prompt := (st.chat_input("Plan a trip...", submit_mode="disable") or take_sample_prompt('m2p1')):
         st.session_state.m2p1_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                resp, metrics = chat_response_with_metrics(st.session_state.m2p1_agent, prompt)
-            st.markdown(resp)
+            resp, metrics = stream_chat(st.session_state.m2p1_agent, prompt, "Thinking...")
         # Show metrics inline for this turn
         prev = st.session_state.m2p1_metrics[-1] if st.session_state.m2p1_metrics else None
         mc1, mc2, mc3, mc4 = st.columns(4)
@@ -145,13 +124,12 @@ Context is a finite resource. As a long conversation accumulates, token counts r
 elif part == "Part 2 — Prompt caching":
     part_header("Prompt caching", "Cache static system prompts to reduce latency on repeat calls.")
 
-    suggestions = ["Revenue breakdown by segment", "Top 3 risks next year", "Growth vs competitors"]
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part2_prompt_caching.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -161,9 +139,7 @@ A cache point marker lets Bedrock store a large static system-prompt prefix once
 **Try it:** Run a prompt twice and check `cacheReadInputTokens` / `cacheWriteInputTokens` in the usage metrics — a cache HIT shows reads with zero writes.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m2p2')
         with tab_code:
             st.code("""
 from strands import Agent
@@ -228,45 +204,12 @@ print(usage["cacheWriteInputTokens"])  # 0 on cache hit
                 mc4.metric("Cache Write", cache_write)
                 mc5.metric("Latency", f"{m.get('latencyMs', 0)}ms")
 
-    # Suggestion chips
-    if not st.session_state.m2p2_msgs:
-        selected = st.pills("Try:", suggestions, key="m2p2_pills")
-        if selected:
-            st.session_state.m2p2_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Processing..."):
-                    resp, metrics = chat_response_with_metrics(st.session_state.m2p2_agent, selected)
-                st.markdown(resp)
-            # Show cache metrics
-            cache_read = metrics.get("cacheReadInputTokens", 0)
-            cache_write = metrics.get("cacheWriteInputTokens", 0)
-            is_cache_hit = cache_read > 0 and cache_write == 0
-            if is_cache_hit:
-                st.success("⚡ **Cache HIT** — reading from cached prefix")
-            elif cache_write > 0:
-                st.warning("📝 **Cache WRITE** — storing prefix for future calls")
-            else:
-                st.info("❄️ **Cache MISS** — no caching activity")
-            mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-            mc1.metric("Input", metrics.get("inputTokens", 0))
-            mc2.metric("Output", metrics.get("outputTokens", 0))
-            mc3.metric("Cache Read", cache_read)
-            mc4.metric("Cache Write", cache_write)
-            mc5.metric("Latency", f"{metrics.get('latencyMs', 0)}ms")
-            st.session_state.m2p2_msgs.append({"role": "assistant", "content": resp})
-            st.session_state.m2p2_metrics.append(metrics)
-            st.rerun()
-
-    if prompt := st.chat_input("Ask about finances...", submit_mode="disable"):
+    if prompt := (st.chat_input("Ask about finances...", submit_mode="disable") or take_sample_prompt('m2p2')):
         st.session_state.m2p2_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Processing..."):
-                resp, metrics = chat_response_with_metrics(st.session_state.m2p2_agent, prompt)
-            st.markdown(resp)
+            resp, metrics = stream_chat(st.session_state.m2p2_agent, prompt, "Processing...")
         # Show cache metrics
         cache_read = metrics.get("cacheReadInputTokens", 0)
         cache_write = metrics.get("cacheWriteInputTokens", 0)
@@ -292,13 +235,12 @@ print(usage["cacheWriteInputTokens"])  # 0 on cache hit
 elif part == "Part 3 — Conv. Managers":
     part_header("Conversation managers", "SummarizingConversationManager compresses older context automatically.")
 
-    suggestions = ["Recommend a database for catalog", "Design the order service"]
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part3_conversation_managers.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -308,9 +250,7 @@ elif part == "Part 3 — Conv. Managers":
 **Try it:** Run the long architecture-design thread, then type `recall` to ask it to list earlier decisions and confirm the summary retained them.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m2p3')
         with tab_code:
             st.code("""
 from strands import Agent
@@ -358,29 +298,13 @@ result = agent("List all key architectural decisions we've made so far")
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Suggestion chips
-    if not st.session_state.m2p3_msgs:
-        selected = st.pills("Try:", suggestions, key="m2p3_pills")
-        if selected:
-            st.session_state.m2p3_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    resp = chat_response(st.session_state.m2p3_agent, selected)
-                st.markdown(resp)
-            st.session_state.m2p3_msgs.append({"role": "assistant", "content": resp})
-            st.rerun()
-
-    if prompt := st.chat_input("Design a system...", submit_mode="disable"):
+    if prompt := (st.chat_input("Design a system...", submit_mode="disable") or take_sample_prompt('m2p3')):
         actual_prompt = "List all key architectural decisions we've made so far." if prompt.lower() == "recall" else prompt
         st.session_state.m2p3_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                resp = chat_response(st.session_state.m2p3_agent, actual_prompt)
-            st.markdown(resp)
+            resp, _ = stream_chat(st.session_state.m2p3_agent, actual_prompt, "Thinking...")
         st.session_state.m2p3_msgs.append({"role": "assistant", "content": resp})
 
 # =============================================================================
@@ -389,17 +313,12 @@ result = agent("List all key architectural decisions we've made so far")
 elif part == "Part 4 — Isolation":
     part_header("Context isolation", "Specialized agents each get only relevant context — no bloat.")
 
-    suggestions = [
-        "Evaluate viability of a 50MW solar farm in Vietnam for 2025-2027.",
-        "Assess the market for electric delivery vans in Southeast Asia.",
-        "Evaluate launching a cloud data-analytics product for SMBs.",
-    ]
     with st.expander("📐 Architecture & Code", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_code = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "📝 Code"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part4_context_isolation.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -409,9 +328,7 @@ Specialized sub-agents (research → analysis → writing) each receive only the
 **Try it:** Run the renewable-energy pipeline and note how little each sub-agent sees compared with one agent holding everything.
 """)
         with tab_prompts:
-            st.caption("Example research tasks — type one into the Research task box.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m2p4', target_key="m2p4_task", action_label="Use", note="Click **Use** to load a task into the Research task box below, then run the pipeline.")
         with tab_code:
             st.code("""
 from strands import Agent
@@ -442,7 +359,10 @@ summary = writer(f"Write exec summary: {analysis}") # Sees only analysis output
         st.session_state.m2p4_done = False
         st.session_state.m2p4_results = {}
 
-    task = st.text_input("Research task:", value="Evaluate viability of a 50MW solar farm in Vietnam for 2025-2027.", key="m2p4_task")
+    if "m2p4_task" not in st.session_state:
+        from sample_prompts import PROMPTS
+        st.session_state.m2p4_task = PROMPTS["m2p4"][0]["prompt"]
+    task = st.text_input("Research task:", key="m2p4_task")
     if st.button("🚀 Run Pipeline", key="m2p4_run") and not st.session_state.m2p4_done:
         with st.status("Running isolated pipeline...", expanded=True):
             st.write("🔬 **Researcher** gathering data...")
@@ -497,13 +417,12 @@ elif part == "Part 5 — Tool Design":
         },
     }
 
-    suggestions = ["Look up customer CUST-44821", "Summarize their account status", "What should we proactively offer them?"]
     with st.expander("📐 Architecture & Tool Comparison", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_comparison = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "Tool Output Comparison"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module2-context-engineering", "diagrams", "part5_tool_design.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found. Run `demos/module2-context-engineering/diagrams/generate_all.py` to generate.")
         with tab_about:
@@ -513,9 +432,7 @@ Tool output format directly drives token cost. The same customer record can be r
 **Try it:** Switch the active tool mode and re-run a lookup to watch the estimated and actual token counts change for identical data.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m2p5')
         with tab_comparison:
             cols = st.columns(3)
             for i, (mode_name, info) in enumerate(TOOL_RESPONSES.items()):
@@ -564,34 +481,12 @@ Tool output format directly drives token cost. The same customer record can be r
             mc3.metric("Total Tokens", m.get('totalTokens', '—'))
             mc4.metric("Latency", f"{m.get('latencyMs', '—')}ms")
 
-    # Suggestion chips
-    if not st.session_state.m2p5_msgs:
-        selected = st.pills("Try:", suggestions, key="m2p5_pills")
-        if selected:
-            st.session_state.m2p5_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Processing..."):
-                    resp, metrics = chat_response_with_metrics(st.session_state.m2p5_agent, selected)
-                st.markdown(resp)
-            mc1, mc2, mc3, mc4 = st.columns(4)
-            mc1.metric("Input Tokens", metrics.get('inputTokens', '—'))
-            mc2.metric("Output Tokens", metrics.get('outputTokens', '—'))
-            mc3.metric("Total Tokens", metrics.get('totalTokens', '—'))
-            mc4.metric("Latency", f"{metrics.get('latencyMs', '—')}ms")
-            st.session_state.m2p5_msgs.append({"role": "assistant", "content": resp, "metrics": metrics})
-            st.session_state.m2p5_token_log.append({"query": selected, "mode": mode, "totalTokens": metrics.get("totalTokens", 0), "inputTokens": metrics.get("inputTokens", 0)})
-            st.rerun()
-
-    if prompt := st.chat_input("Ask about customer CUST-44821...", submit_mode="disable"):
+    if prompt := (st.chat_input("Ask about customer CUST-44821...", submit_mode="disable") or take_sample_prompt('m2p5')):
         st.session_state.m2p5_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Processing..."):
-                resp, metrics = chat_response_with_metrics(st.session_state.m2p5_agent, prompt)
-            st.markdown(resp)
+            resp, metrics = stream_chat(st.session_state.m2p5_agent, prompt, "Processing...")
         mc1, mc2, mc3, mc4 = st.columns(4)
         mc1.metric("Input Tokens", metrics.get('inputTokens', '—'))
         mc2.metric("Output Tokens", metrics.get('outputTokens', '—'))
@@ -627,6 +522,16 @@ elif part == "Part 6 — Failure Modes":
     | **Clash** | Contradictory instructions prevent decisions | "Always refund" vs "Never refund without manager approval" |
     """)
 
+    with st.expander("ℹ️ About & Prompts", expanded=False):
+        tab_about, tab_prompts = st.tabs(["ℹ️ About", "💡 Prompts"])
+        with tab_about:
+            st.markdown("""
+Each failure mode injects a deliberately corrupted system prompt into the agent. The Context Failure Analysis judge then scores the reply on safety, relevance, coherence and caution.
+
+**Try it:** Pick a failure mode, run a sample prompt, then switch modes and run the same prompt to compare how each kind of bad context changes the behaviour.
+""")
+        with tab_prompts:
+            render_sample_prompts("m2p6", note="Pick a failure mode below first, then click **▶ Run** (or copy and edit the prompt).")
     mode = st.segmented_control("Inject failure mode", ["Poisoning", "Distraction", "Confusion", "Clash"], key="m2p6_mode")
 
     if "m2p6_agent" not in st.session_state:
@@ -722,34 +627,12 @@ Identify how the corrupted context affected the agent's behavior."""
                     with st.expander("🧑‍⚖️ Context Failure Analysis", expanded=False):
                         st.markdown(st.session_state.m2p6_judgments[judgment_idx])
 
-        if not st.session_state.m2p6_msgs:
-            suggestions = ["Process a $5000 refund on order ORD-123", "My Hub keeps dropping Wi-Fi"]
-            selected = st.pills("Try:", suggestions, key="m2p6_pills")
-            if selected:
-                st.session_state.m2p6_msgs.append({"role": "user", "content": selected})
-                with st.chat_message("user"):
-                    st.markdown(selected)
-                with st.chat_message("assistant"):
-                    with st.spinner("Processing with corrupted context..."):
-                        resp = chat_response(st.session_state.m2p6_agent, selected)
-                    st.markdown(resp)
-                st.session_state.m2p6_msgs.append({"role": "assistant", "content": resp})
-                # Judge evaluation
-                with st.expander("🧑‍⚖️ Context Failure Analysis", expanded=True):
-                    with st.spinner("Judge analyzing context failure impact..."):
-                        judgment = judge_context_failure(selected, resp, st.session_state.m2p6_current_mode)
-                    st.markdown(judgment)
-                st.session_state.m2p6_judgments.append(judgment)
-                st.rerun()
-
-        if prompt := st.chat_input("Test the agent with corrupted context...", submit_mode="disable"):
+        if prompt := (st.chat_input("Test the agent with corrupted context...", submit_mode="disable") or take_sample_prompt('m2p6')):
             st.session_state.m2p6_msgs.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                with st.spinner("Processing..."):
-                    resp = chat_response(st.session_state.m2p6_agent, prompt)
-                st.markdown(resp)
+                resp, _ = stream_chat(st.session_state.m2p6_agent, prompt, "Processing...")
             st.session_state.m2p6_msgs.append({"role": "assistant", "content": resp})
             # Judge evaluation
             with st.expander("🧑‍⚖️ Context Failure Analysis", expanded=True):

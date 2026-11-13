@@ -141,6 +141,79 @@ def part_header(title: str, description: str, icon: str = ""):
     st.markdown(html, unsafe_allow_html=True)
 
 
+DIAGRAM_ICON_PX = 110        # target on-screen icon size
+DIAGRAM_NATIVE_ICON_PX = 306  # icon size in the PNGs (100pt @ 220dpi, see demos/diagram_style.py)
+DIAGRAM_MAX_WIDTH = 1000      # px; Streamlit clamps to the container if narrower
+DIAGRAM_MAX_HEIGHT = 680      # px; keeps tall diagrams from dominating the page
+
+
+def show_diagram(path: str):
+    """Display an architecture diagram so its icons render at a consistent size.
+
+    A fixed width shrinks icons to specks in long diagrams and blows them up in
+    small ones. Scaling to a target icon size (capped by max width/height) keeps
+    every diagram equally legible. The full-resolution PNG is still served, so
+    it stays crisp on HiDPI screens.
+    """
+    import streamlit as st
+    try:
+        from PIL import Image
+        with Image.open(path) as img:
+            w, h = img.size
+        scale = min(DIAGRAM_ICON_PX / DIAGRAM_NATIVE_ICON_PX, DIAGRAM_MAX_WIDTH / w, DIAGRAM_MAX_HEIGHT / h)
+        width = int(w * scale)
+    except Exception:
+        width = DIAGRAM_MAX_WIDTH
+    st.image(path, width=width)
+
+
+def _queue_sample_prompt(target_key: str, prompt: str, state: dict | None):
+    """Button callback: apply any required widget state, then queue/load the prompt.
+
+    Runs before the next script run, so it can safely set widget keys.
+    """
+    import streamlit as st
+    for k, v in (state or {}).items():
+        st.session_state[k] = v
+    st.session_state[target_key] = prompt
+
+
+def render_sample_prompts(part_key: str, target_key: str | None = None, action_label: str = "▶ Run",
+                          note: str | None = None):
+    """Render a part's "💡 Prompts" tab from sample_prompts.PROMPTS[part_key].
+
+    Each prompt shows its purpose, the full text in a copyable box, and a button.
+    By default the button queues the prompt for the part's chat input (read it with
+    take_sample_prompt). Pass target_key to load it into a text widget instead.
+    """
+    import streamlit as st
+    from sample_prompts import PROMPTS
+
+    target = target_key or f"{part_key}_queued_prompt"
+    st.caption(note or "Click **▶ Run** to send a prompt to the chat below, or copy it from the box and edit it first.")
+    group = None
+    for i, item in enumerate(PROMPTS.get(part_key, [])):
+        if item.get("group") and item["group"] != group:
+            group = item["group"]
+            st.markdown(f"##### {group}")
+        with st.container(border=True):
+            head, action = st.columns([5, 1], vertical_alignment="center")
+            head.markdown(f"**{item['title']}**")
+            action.button(
+                action_label, key=f"{part_key}_sample_{i}", use_container_width=True,
+                on_click=_queue_sample_prompt, args=(target, item["prompt"], item.get("state")),
+            )
+            if item.get("purpose"):
+                st.caption(item["purpose"])
+            st.code(item["prompt"], language=None, wrap_lines=True)
+
+
+def take_sample_prompt(part_key: str) -> str | None:
+    """Return (and clear) a prompt queued from the part's Prompts tab, if any."""
+    import streamlit as st
+    return st.session_state.pop(f"{part_key}_queued_prompt", None)
+
+
 def show_status_badge(label: str, connected: bool):
     """Show a status badge for a service."""
     import streamlit as st

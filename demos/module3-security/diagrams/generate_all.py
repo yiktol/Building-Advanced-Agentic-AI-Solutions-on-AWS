@@ -1,89 +1,78 @@
-"""Generate per-part architecture diagrams for Module 3."""
+"""Generate per-part architecture diagrams for Module 3 (shared style: demos/diagram_style.py)."""
 
-from diagrams import Diagram, Cluster, Edge
-from diagrams.custom import Custom
-from diagrams.aws.ml import Bedrock
-from diagrams.aws.database import Dynamodb
-from diagrams.aws.security import Cognito, IAMPermissions
-from diagrams.aws.network import VPC, Privatelink
-from diagrams.aws.management import Cloudwatch
+import os
+import sys
 
-import os as _os
-ICONS = _os.environ.get(
-    "MLADAS_ICONS",
-    _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))), "aws-icons", "custom"),
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+
+from diagrams import Diagram, Cluster  # noqa: E402
+from diagram_style import (  # noqa: E402
+    COMMON, NAVY, BLUE, GREEN, RED, ORANGE, PURPLE,
+    BEDROCK, COGNITO, VERIFIED_PERMISSIONS, DYNAMODB, PRIVATELINK, CLOUDWATCH,
+    group, flow, aws, user, agent,
 )
-USER = f"{ICONS}/user.png"
-ROBOT = f"{ICONS}/robot.png"
-
-COMMON = {
-    "show": False,
-    "direction": "LR",
-    "outformat": "png",
-    "graph_attr": {"pad": "0.8", "nodesep": "1.0", "ranksep": "3.0", "bgcolor": "white", "dpi": "300", "forcelabels": "true"},
-    "node_attr": {"fontsize": "13", "fontname": "Helvetica Bold"},
-    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0", "minlen": "2"},
-}
 
 
 def part1():
-    with Diagram("Part 1 — Unprotected Agent", filename="part1_unprotected", **COMMON):
-        user = Custom("User", USER)
-        agent = Custom("Agent", ROBOT)
-        db = Dynamodb("DynamoDB")
-        user >> Edge(xlabel="no auth!", color="#DC2626", style="bold") >> agent
-        agent >> Edge(xlabel="unrestricted", color="#DC2626", style="bold") >> db
+    with Diagram(filename="part1_unprotected", **COMMON):
+        person = user("User")
+        bot = agent("Agent")
+        db = aws("DynamoDB", DYNAMODB)
+        person >> flow(RED, "no auth!") >> bot
+        bot >> flow(RED, "unrestricted") >> db
     print("  ✓ part1_unprotected.png")
 
 
 def part2():
-    with Diagram("Part 2 — Cedar Policy Authorization", filename="part2_cedar_policies", **COMMON):
-        user = Custom("User", USER)
-        avp = IAMPermissions("Verified\nPermissions")
-        agent = Custom("Agent", ROBOT)
-        db = Dynamodb("DynamoDB")
-        user >> Edge(xlabel="request", color="#232F3E", style="bold") >> avp
-        avp >> Edge(xlabel="ALLOW / DENY", color="#059669", style="bold") >> agent
-        agent >> Edge(color="#0073BB", style="bold") >> db
+    with Diagram(filename="part2_cedar_policies", **COMMON):
+        person = user("User")
+        avp = aws("Verified\nPermissions", VERIFIED_PERMISSIONS)
+        bot = agent("Agent")
+        db = aws("DynamoDB", DYNAMODB)
+        person >> flow(NAVY, "request") >> avp
+        avp >> flow(GREEN, "ALLOW / DENY") >> bot
+        bot >> flow(BLUE) >> db
     print("  ✓ part2_cedar_policies.png")
 
 
 def part3():
-    with Diagram("Part 3 — Cognito + JWT + Cedar", filename="part3_cognito", **COMMON):
-        user = Custom("User", USER)
-        cognito = Cognito("Amazon\nCognito")
-        avp = IAMPermissions("Verified\nPermissions")
-        agent = Custom("Agent", ROBOT)
-        db = Dynamodb("DynamoDB")
-        user >> Edge(xlabel="login", color="#DD6B20", style="bold") >> cognito
-        cognito >> Edge(xlabel="JWT claims", color="#059669", style="bold") >> avp
-        avp >> Edge(xlabel="authorized", color="#059669", style="bold") >> agent
-        agent >> Edge(color="#0073BB", style="bold") >> db
+    with Diagram(filename="part3_cognito", **COMMON):
+        person = user("User")
+        cognito = aws("Amazon\nCognito", COGNITO)
+        avp = aws("Verified\nPermissions", VERIFIED_PERMISSIONS)
+        bot = agent("Agent")
+        db = aws("DynamoDB", DYNAMODB)
+        person >> flow(ORANGE, "login") >> cognito
+        cognito >> flow(GREEN, "JWT claims") >> avp
+        avp >> flow(GREEN, "authorized") >> bot
+        bot >> flow(BLUE) >> db
     print("  ✓ part3_cognito.png")
 
 
 def part4():
-    with Diagram("Part 4 — VPC Private Access", filename="part4_vpc", **COMMON):
-        with Cluster("Private VPC", graph_attr={"bgcolor": "#f0f8ff", "style": "rounded"}):
-            agent = Custom("Agent", ROBOT)
-            endpoint = Privatelink("PrivateLink")
-        bedrock = Bedrock("Amazon\nBedrock")
-        agent >> Edge(xlabel="private", color="#0073BB", style="bold") >> endpoint
-        endpoint >> Edge(xlabel="no internet", color="#059669", style="bold") >> bedrock
+    with Diagram(filename="part4_vpc", **COMMON):
+        with Cluster("Private VPC", graph_attr=group("blue")):
+            bot = agent("Agent")
+            endpoint = aws("PrivateLink", PRIVATELINK)
+        bedrock = aws("Amazon\nBedrock", BEDROCK)
+        bot >> flow(BLUE, "private") >> endpoint
+        endpoint >> flow(GREEN, "no internet") >> bedrock
     print("  ✓ part4_vpc.png")
 
 
 def part5():
-    with Diagram("Part 5 — Audit Trail", filename="part5_audit", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        db = Dynamodb("DynamoDB")
-        logs = Cloudwatch("CloudWatch\nLogs")
-        agent >> Edge(xlabel="actions", color="#0073BB", style="bold") >> db
-        agent >> Edge(xlabel="audit log", color="#7C3AED", style="dashed") >> logs
+    with Diagram(filename="part5_audit", **COMMON):
+        bot = agent("Agent")
+        db = aws("DynamoDB", DYNAMODB)
+        logs = aws("CloudWatch\nLogs", CLOUDWATCH)
+        bot >> flow(BLUE, "actions") >> db
+        bot >> flow(PURPLE, "audit log", dashed=True) >> logs
     print("  ✓ part5_audit.png")
 
 
 if __name__ == "__main__":
+    os.chdir(HERE)
     print("Module 3: Security & Compliance")
     part1()
     part2()

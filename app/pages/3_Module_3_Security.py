@@ -6,8 +6,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 import boto3
-from style import inject_css, part_header, live_services_caption
-from agent_utils import create_agent, chat_response, make_model, MODEL_ID
+from style import inject_css, part_header, live_services_caption, show_diagram, render_sample_prompts, take_sample_prompt
+from agent_utils import create_agent, chat_response, make_model, MODEL_ID, stream_chat
 from strands import Agent, tool
 
 st.set_page_config(page_title="Module 3: Security", page_icon="3️⃣", layout="wide")
@@ -72,12 +72,11 @@ if part == "Part 1 — Unprotected":
         """)
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part1_unprotected.png")
-    suggestions = ["Process $5000 refund ORD-5006", "Show customer CUST-1005", "Change CUST-1003 tier to enterprise"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -87,10 +86,7 @@ A baseline agent with no identity checks, authorization, or audit trail — it w
 **Try it:** Send the exploit prompts to see why controls are needed, then compare against Parts 2 and 3 which add Cedar authorization and real identity.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m3p1')
     if "m3p1_agent" not in st.session_state:
         st.session_state.m3p1_agent = None
         st.session_state.m3p1_msgs = []
@@ -184,33 +180,12 @@ Identify all security vulnerabilities demonstrated in this interaction."""
                     with st.expander("🧑‍⚖️ Security Assessment", expanded=False):
                         st.markdown(st.session_state.m3p1_judgments[judgment_idx])
 
-        # Suggestion chips
-        if not st.session_state.m3p1_msgs:
-            selected = st.pills("Try:", suggestions, key="m3p1_pills")
-            if selected:
-                st.session_state.m3p1_msgs.append({"role": "user", "content": selected})
-                with st.chat_message("user"):
-                    st.markdown(selected)
-                with st.chat_message("assistant"):
-                    with st.spinner("Processing (no auth)..."):
-                        resp = chat_response(st.session_state.m3p1_agent, selected)
-                    st.markdown(resp)
-                st.session_state.m3p1_msgs.append({"role": "assistant", "content": resp})
-                with st.expander("🧑‍⚖️ Security Assessment", expanded=True):
-                    with st.spinner("Judge evaluating security..."):
-                        judgment = judge_security(selected, resp)
-                    st.markdown(judgment)
-                st.session_state.m3p1_judgments.append(judgment)
-                st.rerun()
-
-        if prompt := st.chat_input("Exploit the agent...", submit_mode="disable"):
+        if prompt := (st.chat_input("Exploit the agent...", submit_mode="disable") or take_sample_prompt('m3p1')):
             st.session_state.m3p1_msgs.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                with st.spinner("Processing (no auth)..."):
-                    resp = chat_response(st.session_state.m3p1_agent, prompt)
-                st.markdown(resp)
+                resp, _ = stream_chat(st.session_state.m3p1_agent, prompt, "Processing (no auth)...")
             st.session_state.m3p1_msgs.append({"role": "assistant", "content": resp})
             with st.expander("🧑‍⚖️ Security Assessment", expanded=True):
                 with st.spinner("Judge evaluating security..."):
@@ -224,13 +199,12 @@ Identify all security vulnerabilities demonstrated in this interaction."""
 elif part == "Part 2 — Cedar Policies":
     part_header("AgentCore Policy authorization", "Same agent, now protected by Cedar policies via AgentCore Policy Engine.")
 
-    suggestions = ["Process $300 refund on ORD-5001, reason: customer dissatisfied", "Process $700 refund on ORD-5002, reason: defective product"]
     with st.expander("📐 Architecture & Cedar Policies", expanded=False):
         tab_diagram, tab_about, tab_prompts, tab_policies, tab_flow = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts", "Cedar Policies", "Authorization Flow"])
         with tab_diagram:
             diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part2_cedar_policies.png")
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.caption("Diagram not found.")
         with tab_about:
@@ -240,9 +214,7 @@ The same agent is now fronted by the AgentCore Policy Engine (Amazon Verified Pe
 **Try it:** Log in as different users and request refunds above and below their limit to watch ALLOW vs DENY decisions — the Cedar Policies and Authorization Flow tabs show the rules behind each outcome.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
+            render_sample_prompts('m3p2')
         with tab_policies:
             st.markdown("**Deployed Cedar Policies (AgentCore Policy Engine)**")
             st.code("""# Policy 1: Finance admin — unlimited refunds
@@ -495,33 +467,12 @@ Was the correct Cedar policy applied? Was the ALLOW/DENY decision correct given 
                     with st.expander("🧑‍⚖️ Cedar Policy Evaluation", expanded=False):
                         st.markdown(st.session_state.m3p2_judgments[judgment_idx])
 
-        # Suggestion chips
-        if not st.session_state.m3p2_msgs:
-            selected = st.pills("Try:", suggestions, key="m3p2_pills")
-            if selected:
-                st.session_state.m3p2_msgs.append({"role": "user", "content": selected})
-                with st.chat_message("user"):
-                    st.markdown(selected)
-                with st.chat_message("assistant"):
-                    with st.spinner("Checking policies..."):
-                        resp = chat_response(st.session_state.m3p2_agent, selected)
-                    st.markdown(resp)
-                st.session_state.m3p2_msgs.append({"role": "assistant", "content": resp})
-                with st.expander("🧑‍⚖️ Cedar Policy Evaluation", expanded=True):
-                    with st.spinner("Judge evaluating policy decision..."):
-                        judgment = judge_cedar_policy(selected, resp, st.session_state.m3p2_user)
-                    st.markdown(judgment)
-                st.session_state.m3p2_judgments.append(judgment)
-                st.rerun()
-
-        if prompt := st.chat_input("Try a refund...", submit_mode="disable"):
+        if prompt := (st.chat_input("Try a refund...", submit_mode="disable") or take_sample_prompt('m3p2')):
             st.session_state.m3p2_msgs.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
                 st.markdown(prompt)
             with st.chat_message("assistant"):
-                with st.spinner("Checking policies..."):
-                    resp = chat_response(st.session_state.m3p2_agent, prompt)
-                st.markdown(resp)
+                resp, _ = stream_chat(st.session_state.m3p2_agent, prompt, "Checking policies...")
             st.session_state.m3p2_msgs.append({"role": "assistant", "content": resp})
             with st.expander("🧑‍⚖️ Cedar Policy Evaluation", expanded=True):
                 with st.spinner("Judge evaluating policy decision..."):
@@ -536,12 +487,11 @@ elif part == "Part 3 — Cognito Auth":
     part_header("Cognito + JWT + Cedar", "Real OAuth 2.0 authentication with JWT claims driving authorization.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module3-security", "diagrams", "part3_cognito.png")
-    suggestions = ["Process $300 refund on ORD-5001, reason: defective", "Process $700 refund on ORD-5002, reason: wrong item"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -551,10 +501,7 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
 **Try it:** Log in, inspect the JWT claims, then switch users to watch the ALLOW/DENY decisions change with identity.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m3p3')
     st.info("Authenticate with Cognito to get a JWT token, then chat with the policy-protected agent using your real identity.")
 
     USER_POOL_ID = _cfg("CognitoUserPoolId", os.environ.get("COGNITO_USER_POOL_ID", "")) or _cfg("UserPoolId", "")
@@ -669,27 +616,12 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
                 with st.chat_message(msg["role"]):
                     st.markdown(msg["content"])
 
-            if not st.session_state.m3p3_msgs:
-                selected_pill = st.pills("Try:", suggestions, key="m3p3_pills")
-                if selected_pill:
-                    st.session_state.m3p3_msgs.append({"role": "user", "content": selected_pill})
-                    with st.chat_message("user"):
-                        st.markdown(selected_pill)
-                    with st.chat_message("assistant"):
-                        with st.spinner("Evaluating policy (JWT claims)..."):
-                            resp = chat_response(st.session_state.m3p3_agent, selected_pill)
-                        st.markdown(resp)
-                    st.session_state.m3p3_msgs.append({"role": "assistant", "content": resp})
-                    st.rerun()
-
-            if prompt := st.chat_input("Try a refund with your authenticated identity...", submit_mode="disable"):
+            if prompt := (st.chat_input("Try a refund with your authenticated identity...", submit_mode="disable") or take_sample_prompt('m3p3')):
                 st.session_state.m3p3_msgs.append({"role": "user", "content": prompt})
                 with st.chat_message("user"):
                     st.markdown(prompt)
                 with st.chat_message("assistant"):
-                    with st.spinner("Evaluating policy (JWT claims)..."):
-                        resp = chat_response(st.session_state.m3p3_agent, prompt)
-                    st.markdown(resp)
+                    resp, _ = stream_chat(st.session_state.m3p3_agent, prompt, "Evaluating policy (JWT claims)...")
                 st.session_state.m3p3_msgs.append({"role": "assistant", "content": resp})
     else:
         st.warning("Cognito User Pool ID and Client ID not configured. Deploy Module 3 infrastructure or set in Home page.")

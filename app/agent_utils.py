@@ -194,7 +194,11 @@ def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
         metrics["maxTokensReached"] = True
         return text, metrics
 
-    text = str(response)
+    return str(response), _metrics_from_result(response)
+
+
+def _metrics_from_result(response) -> dict:
+    """Per-turn metrics dict from a Strands AgentResult (defaults when unavailable)."""
     # Always start from defaults so callers can safely use m["inputTokens"] etc.
     metrics = _default_metrics()
     try:
@@ -214,7 +218,7 @@ def chat_response_with_metrics(agent: Agent, message: str) -> tuple:
         metrics["latencyMs"] = acc_metrics.get("latencyMs", 0)
     except Exception:
         pass
-    return text, metrics
+    return metrics
 
 
 # Illustrative per-model prices in USD per 1,000 tokens (input, output).
@@ -245,13 +249,149 @@ def estimate_cost(model_id: str, input_tokens: int, output_tokens: int) -> float
     return max(cost, 0.0)
 
 
-def chat_stream(agent: Agent, message: str):
-    """Stream a response from the agent. Yields text chunks for st.write_stream."""
+_STREAM_DONE = object()
+
+
+def iter_stream_events(runner, message: str):
+    """Synchronously iterate the events of ``runner.stream_async(message)``.
+
+    Works for an Agent, Graph or Swarm. Strands only exposes an async stream, and
+    Streamlit scripts are synchronous, so the async iterator runs in a background
+    thread with its own event loop and events are handed over through a queue.
+    The Streamlit script-run context is attached to that thread so Streamlit
+    calls made from callbacks still resolve to this session. Exceptions raised
+    by the stream (e.g. MaxTokensReachedException) are re-raised here.
+    """
+    import asyncio
+    import queue
+    import threading
+
+    events: queue.Queue = queue.Queue()
+
+    def _worker():
+        async def _consume():
+            async for event in runner.stream_async(message):
+                events.put(event)
+
+        try:
+            asyncio.run(_consume())
+        except BaseException as exc:  # propagate to the consumer thread
+            events.put(exc)
+        finally:
+            events.put(_STREAM_DONE)
+
+    thread = threading.Thread(target=_worker, daemon=True, name="strands-stream")
     try:
-        for event in agent.stream(message):
-            if "data" in event:
+        from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
+        add_script_run_ctx(thread, get_script_run_ctx())
+    except Exception:  # not running under Streamlit
+        pass
+    thread.start()
+
+    while True:
+        item = events.get()
+        if item is _STREAM_DONE:
+            return
+        if isinstance(item, BaseException):
+            raise item
+        yield item
+
+
+def chat_stream(agent: Agent, message: str, holder: dict | None = None):
+    """Stream a response from the agent. Yields text chunks for st.write_stream.
+
+    If ``holder`` is given, the final AgentResult is stored in ``holder["result"]``
+    so callers can read token metrics after the stream ends. Hitting the
+    max-tokens limit keeps the text already streamed and appends a short note.
+    """
+    try:
+        from strands.types.exceptions import MaxTokensReachedException
+    except Exception:  # pragma: no cover
+        MaxTokensReachedException = ()
+
+    try:
+        for event in iter_stream_events(agent, message):
+            if not isinstance(event, dict):
+                continue
+            if event.get("data"):
                 yield event["data"]
-    except (AttributeError, TypeError):
-        # Fallback: if streaming not supported, yield full response
-        response = agent(message)
-        yield str(response)
+            elif "result" in event and holder is not None:
+                holder["result"] = event["result"]
+    except MaxTokensReachedException:
+        if holder is not None:
+            holder["max_tokens"] = True
+        yield _MAX_TOKENS_NOTE
+
+
+def stream_chat(agent: Agent, message: str, waiting_text: str = "Thinking...") -> tuple:
+    """Render the agent's reply as a live stream in the current Streamlit container.
+
+    Call inside ``with st.chat_message("assistant"):``. Shows a spinner with
+    ``waiting_text`` until the first token arrives (tool calls / routing can take
+    a while), then streams the text. Returns ``(text, metrics)``.
+    """
+    import itertools
+    import streamlit as st
+
+    holder: dict = {}
+    chunks = chat_stream(agent, message, holder)
+    with st.spinner(waiting_text):
+        first = next(chunks, None)
+    if first is None:
+        text = "_(No response.)_"
+        st.markdown(text)
+    else:
+        text = st.write_stream(itertools.chain([first], chunks))
+        if not isinstance(text, str):
+            text = "".join(str(t) for t in text)
+
+    metrics = _metrics_from_result(holder["result"]) if "result" in holder else _default_metrics()
+    if holder.get("max_tokens"):
+        metrics["maxTokensReached"] = True
+    return text, metrics
+
+
+def stream_multiagent(runner, message: str, containers: dict, labels: dict | None = None,
+                      on_node_start=None) -> tuple:
+    """Stream a Graph/Swarm run, rendering each node's text live as it is produced.
+
+    ``containers`` maps node_id -> Streamlit container to render that node into;
+    the key ``"*"`` is the fallback for unlisted nodes. ``labels`` maps node_id
+    -> heading shown above the node's output. ``on_node_start(node_id)`` is an
+    optional hook (e.g. to update a status box). Returns ``(result, texts)``
+    where ``texts`` maps node_id -> full streamed text, in execution order.
+    """
+    labels = labels or {}
+    texts: dict = {}
+    slots: dict = {}
+    result = None
+    for event in iter_stream_events(runner, message):
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("type")
+        if kind == "multiagent_node_start":
+            node = event.get("node_id")
+            if on_node_start:
+                on_node_start(node)
+            box = containers.get(node, containers.get("*"))
+            if box is not None:
+                if labels.get(node):
+                    box.markdown(f"**{labels[node]}**")
+                slots[node] = box.empty()
+            texts.setdefault(node, "")
+        elif kind == "multiagent_node_stream":
+            node = event.get("node_id")
+            data = (event.get("event") or {}).get("data")
+            if data:
+                texts[node] = texts.get(node, "") + data
+                if node in slots:
+                    slots[node].markdown(texts[node] + " ▌")
+        elif kind == "multiagent_node_stop":
+            node = event.get("node_id")
+            if node in slots:
+                slots[node].markdown(texts.get(node, "") or "_(no text output)_")
+        elif kind == "multiagent_result":
+            result = event.get("result")
+    for node, slot in slots.items():  # drop any leftover cursor
+        slot.markdown(texts.get(node, "") or "_(no text output)_")
+    return result, texts

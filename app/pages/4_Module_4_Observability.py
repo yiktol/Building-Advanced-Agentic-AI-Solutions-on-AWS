@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 import boto3
-from style import inject_css, part_header, live_services_caption
-from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, estimate_cost, MODEL_ID
+from style import inject_css, part_header, live_services_caption, show_diagram, render_sample_prompts, take_sample_prompt
+from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, estimate_cost, MODEL_ID, stream_chat
 from strands import tool
 
 st.set_page_config(page_title="Module 4: Observability", page_icon="4️⃣", layout="wide")
@@ -47,12 +47,11 @@ if part == "Part 1 — Metrics":
     part_header("Real-time metrics", "Every interaction emits latency, token, and tool metrics.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part1_tracing.png")
-    suggestions = ["Search for TechMart Hub", "What laptops under $800?", "Is the Titan in stock?"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -62,10 +61,7 @@ Every interaction emits latency, token, and tool metrics and records a Session �
 **Try it:** Run a few queries and open the span view to see per-operation timing feeding the dashboard.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m4p1')
     if "m4p1_agent" not in st.session_state:
         st.session_state.m4p1_agent = None
         st.session_state.m4p1_msgs = []
@@ -158,46 +154,17 @@ Every interaction emits latency, token, and tool metrics and records a Session �
                     mc4.metric("🔧 Tools", m.get("toolCalls", 0))
                     mc5.metric("Σ Total", f"{m.get('totalTokens', 0):,}")
 
-    # Suggestion chips
-    if not st.session_state.m4p1_msgs:
-        selected = st.pills("Try:", suggestions, key="m4p1_pills")
-        if selected:
-            st.session_state.m4p1_msgs.append({"role": "user", "content": selected})
-            tool_counter[0] = 0
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Processing..."):
-                    import time as _t; _s = _t.time()
-                    resp, metrics = chat_response_with_metrics(st.session_state.m4p1_agent, selected)
-                    wall_time = (_t.time() - _s) * 1000
-                    metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
-                    metrics["toolCalls"] = tool_counter[0]
-                st.markdown(resp)
-            with st.container(border=True):
-                mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-                mc1.metric("⬇️ Input", f"{metrics.get('inputTokens', 0):,}")
-                mc2.metric("⬆️ Output", f"{metrics.get('outputTokens', 0):,}")
-                mc3.metric("⏱️ Latency", f"{metrics.get('latencyMs', 0)}ms")
-                mc4.metric("🔧 Tools", metrics.get("toolCalls", 0))
-                mc5.metric("Σ Total", f"{metrics.get('totalTokens', 0):,}")
-            st.session_state.m4p1_msgs.append({"role": "assistant", "content": resp})
-            st.session_state.m4p1_metrics.append(metrics)
-            st.rerun()
-
-    if prompt := st.chat_input("Ask about products...", submit_mode="disable"):
+    if prompt := (st.chat_input("Ask about products...", submit_mode="disable") or take_sample_prompt('m4p1')):
         st.session_state.m4p1_msgs.append({"role": "user", "content": prompt})
         tool_counter[0] = 0
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Processing..."):
-                import time as _t; _s = _t.time()
-                resp, metrics = chat_response_with_metrics(st.session_state.m4p1_agent, prompt)
-                wall_time = (_t.time() - _s) * 1000
-                metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
-                metrics["toolCalls"] = tool_counter[0]
-            st.markdown(resp)
+            import time as _t; _s = _t.time()
+            resp, metrics = stream_chat(st.session_state.m4p1_agent, prompt, "Processing...")
+            wall_time = (_t.time() - _s) * 1000
+            metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
+            metrics["toolCalls"] = tool_counter[0]
         with st.container(border=True):
             mc1, mc2, mc3, mc4, mc5 = st.columns(5)
             mc1.metric("⬇️ Input", f"{metrics.get('inputTokens', 0):,}")
@@ -215,12 +182,11 @@ elif part == "Part 2 — Loop detection":
     part_header("Loop detection", "Circuit breaker activates when agent makes too many repeated tool calls.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part3_loop_detection.png")
-    suggestions = ["Find all customer records and process each one"]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -230,10 +196,7 @@ A circuit breaker trips when the agent makes too many repeated tool calls, stopp
 **Try it:** Trigger the "loopy" mode to watch tool calls escalate and the breaker activate.
 """)
         with tab_prompts:
-            st.caption("Sample prompts — click the matching pill in the chat below to run them.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m4p2')
     if "m4p2_agent" not in st.session_state:
         st.session_state.m4p2_agent = None
         st.session_state.m4p2_msgs = []
@@ -289,28 +252,12 @@ A circuit breaker trips when the agent makes too many repeated tool calls, stopp
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Suggestion chips
-    if not st.session_state.m4p2_msgs:
-        selected = st.pills("Try:", suggestions, key="m4p2_pills")
-        if selected:
-            st.session_state.m4p2_msgs.append({"role": "user", "content": selected})
-            with st.chat_message("user"):
-                st.markdown(selected)
-            with st.chat_message("assistant"):
-                with st.spinner("Agent searching (may loop)..."):
-                    resp = chat_response(st.session_state.m4p2_agent, selected)
-                st.markdown(resp)
-            st.session_state.m4p2_msgs.append({"role": "assistant", "content": resp})
-            st.rerun()
-
-    if prompt := st.chat_input("Find all records...", submit_mode="disable"):
+    if prompt := (st.chat_input("Find all records...", submit_mode="disable") or take_sample_prompt('m4p2')):
         st.session_state.m4p2_msgs.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
-            with st.spinner("Agent searching (may loop)..."):
-                resp = chat_response(st.session_state.m4p2_agent, prompt)
-            st.markdown(resp)
+            resp, _ = stream_chat(st.session_state.m4p2_agent, prompt, "Agent searching (may loop)...")
         st.session_state.m4p2_msgs.append({"role": "assistant", "content": resp})
         st.rerun()
 
@@ -321,16 +268,11 @@ elif part == "Part 3 — Evaluation":
     part_header("LLM-as-judge evaluation", "Automated quality scoring of agent responses.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part4_evaluation.png")
-    suggestions = [
-        "My TechMart Hub keeps dropping Wi-Fi. Firmware v2.1.3.",
-        "What's the best laptop for video editing under $800?",
-        "Can I return an item after 45 days?",
-    ]
     with st.expander("📐 Architecture Diagram", expanded=False):
         tab_diagram, tab_about, tab_prompts = st.tabs(["📐 Diagram", "ℹ️ About", "💡 Prompts"])
         with tab_diagram:
             if os.path.exists(diagram_path):
-                st.image(diagram_path, width=700)
+                show_diagram(diagram_path)
             else:
                 st.info("Diagram not available.")
         with tab_about:
@@ -340,10 +282,7 @@ An automated judge scores responses on correctness, helpfulness, and tool select
 **Try it:** Run the automated test suite to see per-evaluator scores and the pass/fail quality threshold.
 """)
         with tab_prompts:
-            st.caption("Example queries to evaluate — type one into the box above.")
-            for _p in suggestions:
-                st.markdown("- " + _p)
-
+            render_sample_prompts('m4p3', target_key="m4p3_query", action_label="Use", note="Click **Use** to load a query into the box below, then press 🧪 Evaluate.")
     from agentcore_utils import AgentCoreEvaluator, get_agentcore_status
     status = get_agentcore_status()
 
@@ -370,7 +309,10 @@ For this interactive demo, we use a local LLM-as-judge that scores responses imm
     if "m4p3_results" not in st.session_state:
         st.session_state.m4p3_results = []
 
-    test_query = st.text_input("Query to evaluate:", value="My TechMart Hub keeps dropping Wi-Fi. Firmware v2.1.3.", key="m4p3_query")
+    if "m4p3_query" not in st.session_state:
+        from sample_prompts import PROMPTS
+        st.session_state.m4p3_query = PROMPTS["m4p3"][0]["prompt"]
+    test_query = st.text_input("Query to evaluate:", key="m4p3_query")
 
     if st.button("🧪 Evaluate", key="m4p3_eval"):
         with st.spinner("Running evaluation (5 dimensions)..."):

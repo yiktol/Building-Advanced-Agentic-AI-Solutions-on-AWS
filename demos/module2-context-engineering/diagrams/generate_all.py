@@ -1,75 +1,65 @@
-"""Generate per-part architecture diagrams for Module 2."""
+"""Generate per-part architecture diagrams for Module 2 (shared style: demos/diagram_style.py)."""
 
-from diagrams import Diagram, Cluster, Edge
-from diagrams.custom import Custom
-from diagrams.aws.ml import Bedrock
+import os
+import sys
 
-import os as _os
-ICONS = _os.environ.get(
-    "MLADAS_ICONS",
-    _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))), "aws-icons", "custom"),
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+
+from diagrams import Diagram, Cluster  # noqa: E402
+from diagram_style import (  # noqa: E402
+    COMMON, BLUE, GREEN, RED, PURPLE, BEDROCK,
+    group, flow, aws, user, agent, tool,
 )
-USER = f"{ICONS}/user.png"
-ROBOT = f"{ICONS}/robot.png"
-TOOL = f"{ICONS}/tool.png"
-
-COMMON = {
-    "show": False,
-    "direction": "LR",
-    "outformat": "png",
-    # forcelabels + xlabel on edges keeps labels off the line (no overlap); dpi 300 = crisp.
-    "graph_attr": {"pad": "0.8", "nodesep": "1.0", "ranksep": "3.0", "bgcolor": "white", "dpi": "300", "forcelabels": "true"},
-    "node_attr": {"fontsize": "13", "fontname": "Helvetica Bold"},
-    "edge_attr": {"fontsize": "11", "fontname": "Helvetica", "penwidth": "2.0", "minlen": "2"},
-}
 
 
 def part1():
-    with Diagram("Part 1 — Context Exhaustion", filename="part1_context_exhaustion", **COMMON):
-        user = Custom("Customer", USER)
-        agent = Custom("Agent", ROBOT)
-        user >> Edge(xlabel="growing context\n(token accumulation)", color="#DC2626", style="bold") >> agent
+    with Diagram(filename="part1_context_exhaustion", **COMMON):
+        customer = user("Customer")
+        bot = agent("Agent")
+        customer >> flow(RED, "growing context\n(token accumulation)") >> bot
     print("  ✓ part1_context_exhaustion.png")
 
 
 def part2():
-    with Diagram("Part 2 — Prompt Caching", filename="part2_prompt_caching", **COMMON):
-        cache = Bedrock("Bedrock\nPrompt Cache")
-        agent = Custom("Agent", ROBOT)
-        cache >> Edge(xlabel="cached prefix\n(fast)", color="#059669", style="bold") >> agent
+    with Diagram(filename="part2_prompt_caching", **COMMON):
+        cache = aws("Bedrock\nPrompt Cache", BEDROCK)
+        bot = agent("Agent")
+        cache >> flow(GREEN, "cached prefix\n(fast)") >> bot
     print("  ✓ part2_prompt_caching.png")
 
 
 def part3():
-    with Diagram("Part 3 — Conversation Managers", filename="part3_conversation_managers", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        manager = Bedrock("Summarizing\nManager")
-        agent >> Edge(xlabel="compress history", color="#7C3AED", style="bold") >> manager
+    with Diagram(filename="part3_conversation_managers", **COMMON):
+        bot = agent("Agent")
+        manager = aws("Summarizing\nManager", BEDROCK)
+        bot >> flow(PURPLE, "compress history") >> manager
     print("  ✓ part3_conversation_managers.png")
 
 
 def part4():
-    with Diagram("Part 4 — Context Isolation", filename="part4_context_isolation", **COMMON):
-        researcher = Custom("Researcher", ROBOT)
-        analyst = Custom("Analyst", ROBOT)
-        writer = Custom("Writer", ROBOT)
-        researcher >> Edge(xlabel="findings only", color="#0073BB", style="bold") >> analyst
-        analyst >> Edge(xlabel="analysis only", color="#0073BB", style="bold") >> writer
+    with Diagram(filename="part4_context_isolation", **COMMON):
+        researcher = agent("Researcher")
+        analyst = agent("Analyst")
+        writer = agent("Writer")
+        researcher >> flow(BLUE, "findings only") >> analyst
+        analyst >> flow(BLUE, "analysis only") >> writer
     print("  ✓ part4_context_isolation.png")
 
 
 def part5():
-    with Diagram("Part 5 — Tool Design", filename="part5_tool_design", **COMMON):
-        agent = Custom("Agent", ROBOT)
-        with Cluster("Tool Responses", graph_attr={"bgcolor": "#f8f8f8", "style": "rounded"}):
-            verbose = Custom("Verbose Tool\n(5000 tokens)", TOOL)
-            optimized = Custom("Optimized Tool\n(500 tokens)", TOOL)
-        agent >> Edge(xlabel="wasteful", color="#DC2626", style="bold") >> verbose
-        agent >> Edge(xlabel="efficient", color="#059669", style="bold") >> optimized
+    with Diagram(filename="part5_tool_design", **COMMON):
+        bot = agent("Agent")
+        with Cluster("Tool Responses", graph_attr=group("gray")):
+            verbose = tool("Verbose Tool\n(5000 tokens)")
+            optimized = tool("Optimized Tool\n(500 tokens)")
+        bot >> flow(RED, "wasteful") >> verbose
+        bot >> flow(GREEN, "efficient") >> optimized
     print("  ✓ part5_tool_design.png")
 
 
 if __name__ == "__main__":
+    os.chdir(HERE)
     print("Module 2: Context Engineering")
     part1()
     part2()
