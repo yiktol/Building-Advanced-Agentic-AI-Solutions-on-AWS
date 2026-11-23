@@ -12,6 +12,7 @@ Shows:
 - CloudWatch Insights queries for compliance reports
 """
 
+import sys
 import os
 import json
 import time
@@ -414,4 +415,8 @@ fields @timestamp, action, resource, outcome, user.hero_name as hero, user.role 
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

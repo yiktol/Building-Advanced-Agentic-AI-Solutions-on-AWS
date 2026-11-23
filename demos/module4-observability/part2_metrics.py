@@ -10,6 +10,7 @@ Shows:
 - Metric dimensions for filtering (by tool, session, etc.)
 """
 
+import sys
 import os
 import time
 import uuid
@@ -279,4 +280,8 @@ def show_stats():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

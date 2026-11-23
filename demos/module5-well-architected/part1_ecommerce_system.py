@@ -8,6 +8,7 @@ by an orchestrator, backed by real DynamoDB data.
 This is the "system under review" for Parts 2-5.
 """
 
+import sys
 import os
 import boto3
 from decimal import Decimal
@@ -273,4 +274,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

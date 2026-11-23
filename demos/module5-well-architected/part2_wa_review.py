@@ -6,6 +6,7 @@ against each Well-Architected Framework pillar and produces a
 scored findings report.
 """
 
+import sys
 import os
 import json
 import uuid
@@ -267,4 +268,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

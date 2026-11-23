@@ -11,6 +11,7 @@ Shows:
 - Automatic session termination
 """
 
+import sys
 import os
 import time
 import json
@@ -344,4 +345,8 @@ def show_status():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

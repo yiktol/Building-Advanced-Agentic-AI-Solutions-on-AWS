@@ -2,9 +2,13 @@
 # Deploy Module 3 Demo Infrastructure
 # Usage: ./scripts/deploy.sh [deploy|destroy]
 
-set -e
+set -euo pipefail
 
-REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
+# Always run relative to the module directory, regardless of where it is invoked from.
+cd "$(dirname "$0")/.."
+
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-ap-southeast-1}}"
+export AWS_DEFAULT_REGION="$REGION"
 STACK_PREFIX="m3-demo"
 DEFAULT_PASSWORD="${DEMO_USER_PASSWORD:-Hero\$ecure1!}"
 
@@ -33,6 +37,16 @@ if [ "$ACTION" == "destroy" ]; then
     echo "✅ All stacks destroyed."
     exit 0
 fi
+
+# --- Preflight: fail early with a clear message instead of halfway through ---
+echo ""
+echo "🔎 Preflight checks..."
+command -v aws >/dev/null     || { echo "  ✗ aws CLI not found"; exit 1; }
+command -v python3 >/dev/null || { echo "  ✗ python3 not found"; exit 1; }
+python3 -c "import boto3" 2>/dev/null || { echo "  ✗ boto3 missing: pip install boto3"; exit 1; }
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null) || {
+    echo "  ✗ AWS credentials missing or expired (try: aws sso login)"; exit 1; }
+echo "  ✓ aws, python3, boto3 present; account $ACCOUNT, region $REGION"
 
 echo ""
 echo "📦 Deploying stacks..."
@@ -97,8 +111,8 @@ USER_POOL_ID=$(aws cloudformation describe-stacks \
 while IFS=',' read -r EMAIL ROLE DEPT HERO MAX_REFUND; do
     [ -z "$EMAIL" ] && continue
 
-    # Create user (ignore if exists)
-    aws cognito-idp admin-create-user \
+    # Create user; tolerate only "already exists" so re-runs are idempotent
+    if ! OUT=$(aws cognito-idp admin-create-user \
         --user-pool-id "$USER_POOL_ID" \
         --username "$EMAIL" \
         --user-attributes \
@@ -109,16 +123,23 @@ while IFS=',' read -r EMAIL ROLE DEPT HERO MAX_REFUND; do
             Name=custom:hero_name,Value="$HERO" \
             Name=custom:max_refund,Value="$MAX_REFUND" \
         --message-action SUPPRESS \
-        --region "$REGION" 2>/dev/null || true
-
-    # Set permanent password
+        --region "$REGION" 2>&1 >/dev/null); then
+        echo "$OUT" | grep -q UsernameExistsException || { echo "  ✗ create $EMAIL failed: $OUT"; exit 1; }
+    fi
+    # Keep attributes in sync on re-runs, then set a permanent password
+    aws cognito-idp admin-update-user-attributes \
+        --user-pool-id "$USER_POOL_ID" --username "$EMAIL" --region "$REGION" \
+        --user-attributes \
+            Name=custom:role,Value="$ROLE" \
+            Name=custom:department,Value="$DEPT" \
+            Name=custom:hero_name,Value="$HERO" \
+            Name=custom:max_refund,Value="$MAX_REFUND" >/dev/null
     aws cognito-idp admin-set-user-password \
         --user-pool-id "$USER_POOL_ID" \
         --username "$EMAIL" \
         --password "$DEFAULT_PASSWORD" \
         --permanent \
-        --region "$REGION" 2>/dev/null || true
-
+        --region "$REGION" >/dev/null
     echo "  ✓ $HERO ($EMAIL) — $ROLE/$DEPT"
 done <<'EOF'
 clark.kent@dailyplanet.com,admin,finance,Superman,10000
@@ -133,7 +154,7 @@ echo "=============================================="
 echo " Seeding DynamoDB..."
 echo "=============================================="
 
-python3 scripts/seed_data.py --region "$REGION"
+python3 scripts/seed_data.py --region "$REGION" --verify
 
 echo ""
 echo "=============================================="

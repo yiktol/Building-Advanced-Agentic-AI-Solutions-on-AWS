@@ -68,7 +68,7 @@ echo "2/3 Copying .env to EC2..."
 if [ ! -f "$ENV_FILE" ]; then
   echo "  ⚠️  .env file not found at: $ENV_FILE (skipping)"
 else
-  B64=$(base64 -w0 "$ENV_FILE")
+  B64=$(base64 < "$ENV_FILE" | tr -d "\n")
   CMD_ID=$(aws ssm send-command \
     --instance-ids "$INSTANCE_ID" \
     --region "$REGION" \

@@ -8,6 +8,7 @@ Demonstrates cost management strategies:
 - Cost metrics published to CloudWatch
 """
 
+import sys
 import os
 import time
 import uuid
@@ -309,4 +310,8 @@ def show_cost_summary(tracker: CostTracker, use_tiering: bool):
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

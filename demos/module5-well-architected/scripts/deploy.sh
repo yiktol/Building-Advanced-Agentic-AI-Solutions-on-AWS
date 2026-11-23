@@ -2,9 +2,13 @@
 # Deploy Module 5 Demo Infrastructure
 # Usage: ./scripts/deploy.sh [deploy|destroy]
 
-set -e
+set -euo pipefail
 
-REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
+# Always run relative to the module directory, regardless of where it is invoked from.
+cd "$(dirname "$0")/.."
+
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-ap-southeast-1}}"
+export AWS_DEFAULT_REGION="$REGION"
 STACK_PREFIX="m5-demo"
 ACTION="${1:-deploy}"
 
@@ -26,6 +30,16 @@ if [ "$ACTION" == "destroy" ]; then
     echo "✅ All stacks destroyed."
     exit 0
 fi
+
+# --- Preflight: fail early with a clear message instead of halfway through ---
+echo ""
+echo "🔎 Preflight checks..."
+command -v aws >/dev/null     || { echo "  ✗ aws CLI not found"; exit 1; }
+command -v python3 >/dev/null || { echo "  ✗ python3 not found"; exit 1; }
+python3 -c "import boto3" 2>/dev/null || { echo "  ✗ boto3 missing: pip install boto3"; exit 1; }
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null) || {
+    echo "  ✗ AWS credentials missing or expired (try: aws sso login)"; exit 1; }
+echo "  ✓ aws, python3, boto3 present; account $ACCOUNT, region $REGION"
 
 echo ""
 echo "📦 Deploying stacks..."

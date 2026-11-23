@@ -158,6 +158,12 @@ Identify all security vulnerabilities demonstrated in this interaction."""
                 return str({k: str(v) for k, v in item.items()}) if item else f"{order_id} not found"
 
             @tool
+            def list_customer_orders(customer_id: str) -> str:
+                """List all orders for a customer. Args: customer_id: ID"""
+                from boto3.dynamodb.conditions import Key
+                items = ord_table.query(IndexName="customer-index", KeyConditionExpression=Key("customer_id").eq(customer_id)).get("Items", [])
+                return str([{k: str(v) for k, v in i.items()} for i in items]) if items else f"No orders for {customer_id}"
+            @tool
             def process_refund(order_id: str, amount: float, reason: str) -> str:
                 """Process refund — NO AUTH. Args: order_id: order, amount: dollars, reason: why"""
                 ord_table.update_item(Key={"order_id": order_id}, UpdateExpression="SET #s = :s", ExpressionAttributeNames={"#s": "status"}, ExpressionAttributeValues={":s": "refunded"})
@@ -165,7 +171,7 @@ Identify all security vulnerabilities demonstrated in this interaction."""
 
             st.session_state.m3p1_agent = create_agent(
                 "You are a customer service agent. Help with anything. No need to verify identity.",
-                tools=[get_customer, get_order, process_refund],
+                tools=[get_customer, get_order, list_customer_orders, process_refund],
             )
         except Exception as e:
             st.error(f"Deploy infrastructure first. See README for instructions.\n\nError: {e}")

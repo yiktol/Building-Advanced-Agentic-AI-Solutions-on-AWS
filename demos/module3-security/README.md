@@ -48,6 +48,12 @@ This deploys:
 3. Amazon Verified Permissions policy store with Cedar policies
 4. CloudWatch Log Groups and IAM roles
 
+`deploy.sh` is safe to re-run and can be started from any directory. It checks for the
+AWS CLI, python3, boto3 and valid credentials first, then deploys the stacks, creates or
+updates the test users, seeds the data and verifies it (CUST-1005 contact details and orders).
+The region comes from `AWS_REGION` (or `AWS_DEFAULT_REGION`), default `ap-southeast-1`.
+To re-seed only: `python3 scripts/seed_data.py --region ap-southeast-1 --verify`.
+
 ### Load Configuration
 
 After deployment, source the generated config:

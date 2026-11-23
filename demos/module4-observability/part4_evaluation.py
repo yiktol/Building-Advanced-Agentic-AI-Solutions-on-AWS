@@ -12,6 +12,7 @@ Shows:
 - Evaluation results stored in DynamoDB and published as metrics
 """
 
+import sys
 import os
 import json
 import time
@@ -372,4 +373,8 @@ def run_interactive_evaluation(agent: Agent):
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

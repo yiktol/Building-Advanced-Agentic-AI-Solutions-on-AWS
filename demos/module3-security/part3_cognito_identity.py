@@ -12,6 +12,7 @@ Shows:
 - Different users get different access based on their token
 """
 
+import sys
 import os
 import json
 import base64
@@ -342,4 +343,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

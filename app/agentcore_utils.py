@@ -31,15 +31,23 @@ def _get_config(key: str, default: str = "") -> str:
 
 
 def _get_cfn_config_cached() -> dict:
-    """Load CFN outputs once and cache in module-level variable."""
-    global _cfn_cache
-    if _cfn_cache is not None:
+    """Load CFN outputs and cache them at module level.
+
+    An empty result (nothing deployed yet) is only cached for 30 seconds, so a
+    stack deployed while the app is running gets picked up without a restart.
+    """
+    global _cfn_cache, _cfn_cache_time
+    import time
+    now = time.time()
+    if _cfn_cache is not None and (_cfn_cache or now - _cfn_cache_time < 30):
         return _cfn_cache
     _cfn_cache = _load_cfn_outputs()
+    _cfn_cache_time = now
     return _cfn_cache
 
 
 _cfn_cache = None
+_cfn_cache_time = 0.0
 
 
 def _load_cfn_outputs() -> dict:

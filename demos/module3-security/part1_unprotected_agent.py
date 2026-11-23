@@ -10,8 +10,10 @@ This shows WHY security controls are needed:
 - No record of what happened or who authorized it
 """
 
+import sys
 import os
 import boto3
+from boto3.dynamodb.conditions import Key
 from strands import Agent, tool
 from strands.models import BedrockModel
 
@@ -57,6 +59,22 @@ def get_order(order_id: str) -> str:
     if not item:
         return f"Order {order_id} not found."
     return str({k: str(v) if hasattr(v, "as_tuple") else v for k, v in item.items()})
+
+
+@tool
+def list_customer_orders(customer_id: str) -> str:
+    """List all orders for a customer. No authorization required.
+
+    Args:
+        customer_id: Customer ID (e.g., CUST-1001)
+    """
+    items = orders_table.query(
+        IndexName="customer-index",
+        KeyConditionExpression=Key("customer_id").eq(customer_id),
+    ).get("Items", [])
+    if not items:
+        return f"No orders found for {customer_id}."
+    return str([{k: str(v) for k, v in i.items()} for i in items])
 
 
 @tool
@@ -134,7 +152,7 @@ def run_demo():
     agent = Agent(
         model=model,
         system_prompt=SYSTEM_PROMPT,
-        tools=[get_customer, get_order, process_refund, modify_customer],
+        tools=[get_customer, get_order, list_customer_orders, process_refund, modify_customer],
     )
 
     while True:
@@ -159,4 +177,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

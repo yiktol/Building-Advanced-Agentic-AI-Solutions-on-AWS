@@ -15,6 +15,7 @@ Benefits shown:
 - Memory persists across interactions
 """
 
+import sys
 import json
 from datetime import datetime
 from strands import Agent, tool
@@ -304,4 +305,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

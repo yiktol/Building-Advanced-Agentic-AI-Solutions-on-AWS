@@ -10,6 +10,7 @@ Shows:
 - Context failure modes (distraction, losing earlier details)
 """
 
+import sys
 import time
 from strands import Agent
 from strands.models import BedrockModel
@@ -128,4 +129,8 @@ def run_demo():
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)

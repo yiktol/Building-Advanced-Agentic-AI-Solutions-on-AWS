@@ -12,6 +12,7 @@ Shows:
 - Dashboard URL for visual inspection
 """
 
+import sys
 import os
 import json
 import time
@@ -333,4 +334,8 @@ fields @timestamp, operation, duration_ms, status, session_id
 
 
 if __name__ == "__main__":
-    run_demo()
+    try:
+        run_demo()
+    except KeyboardInterrupt:
+        print("\n\n  Interrupted. Goodbye!")
+        sys.exit(130)
