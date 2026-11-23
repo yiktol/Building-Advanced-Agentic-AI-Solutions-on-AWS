@@ -430,8 +430,18 @@ The query is sent to the deployed agent on AgentCore Runtime. Its OpenTelemetry 
                         with st.spinner("Querying online evaluation results..."):
                             result["online"] = runtime_client.fetch_online_results(result["session_id"])
                     if result["online"]:
-                        st.markdown(f"**Online evaluation results** ({len(result['online'])} records, written by `{runtime_client.online_eval_id()}`)")
-                        st.json(result["online"], expanded=False)
+                        st.markdown(f"**Online evaluation results** (written by `{runtime_client.online_eval_id()}`)")
+                        _by = {}
+                        for r in result["online"]:
+                            if r.get("value") is not None:
+                                _by.setdefault(r["evaluator"], []).append(float(r["value"]))
+                        if _by:
+                            _cols = st.columns(len(_by))
+                            for _c, (_n, _v) in zip(_cols, _by.items()):
+                                _c.metric(_n.replace("Builtin.", ""), f"{sum(_v) / len(_v):.2f}")
+                        with st.expander("💬 Online evaluator explanations", expanded=False):
+                            for r in result["online"]:
+                                st.markdown(f"**{r['evaluator']}** · {r['value']} {r['label']}  \n{r['explanation']}")
                     else:
                         st.caption("Online evaluation runs after 5 minutes of session inactivity; results can take a few more minutes.")
             if i >= 2:

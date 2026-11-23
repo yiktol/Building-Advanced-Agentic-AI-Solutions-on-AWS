@@ -196,16 +196,43 @@ def evaluate(spans: list[dict], evaluator_ids: list[str]) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- online evaluation
-def fetch_online_results(session_id: str, lookback_min: int = 120) -> list[dict]:
-    """Results the online evaluation config wrote to CloudWatch Logs for this session."""
+def fetch_online_results(session_id: str, lookback_min: int = 240) -> list[dict]:
+    """Online evaluation results for one session, as {evaluator, value, label, explanation}.
+
+    Uses FilterLogEvents rather than Logs Insights so freshly written results are visible at once.
+    """
     import boto3
 
     if not online_eval_id():
         return []
     logs = boto3.client("logs", region_name=REGION)
-    query = (
-        "fields @timestamp, @message "
-        f'| filter @message like "{session_id}" '
-        "| sort @timestamp asc | limit 200"
-    )
-    return _run_insights(logs, online_eval_log_group(), query, lookback_min)
+    kwargs = {
+        "logGroupName": online_eval_log_group(),
+        "filterPattern": f'"{session_id}"',
+        "startTime": int((time.time() - lookback_min * 60) * 1000),
+    }
+    rows = []
+    try:
+        while True:
+            page = logs.filter_log_events(**kwargs)
+            for ev in page.get("events", []):
+                try:
+                    rec = json.loads(ev["message"])
+                except Exception:
+                    continue
+                a = rec.get("attributes", {})
+                if a.get("session.id") != session_id:
+                    continue
+                rows.append({
+                    "evaluator": a.get("gen_ai.evaluation.name", ""),
+                    "value": a.get("gen_ai.evaluation.score.value"),
+                    "label": a.get("gen_ai.evaluation.score.label", ""),
+                    "explanation": a.get("gen_ai.evaluation.explanation", ""),
+                    "trace_id": a.get("trace.id", rec.get("traceId", "")),
+                })
+            if not page.get("nextToken"):
+                break
+            kwargs["nextToken"] = page["nextToken"]
+    except logs.exceptions.ResourceNotFoundException:
+        return []  # the results log group is created on the first evaluation
+    return rows
