@@ -1,6 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AgentCore Gateway with MCP tool targets (Module 1 Part 3, Module 2 Part 5)'
+Description: 'AgentCore Gateway with MCP tool targets, Cognito JWT auth and Cedar policy enforcement (Module 1 Part 3, Module 2 Part 5, Module 3)'
 
+Parameters:
+  CognitoUserPoolId:
+    Type: String
+    Description: 'Cognito user pool ID (m3-demo-cognito output UserPoolId) used to validate caller JWTs'
+  CognitoClientId:
+    Type: String
+    Description: 'Cognito app client ID (m3-demo-cognito output UserPoolClientId); matched against the JWT aud claim'
+  PolicyEngineArn:
+    Type: String
+    Description: 'Policy engine ARN (mladas-agentcore-policy output PolicyEngineArn) attached in ENFORCE mode'
+  OrdersTableName:
+    Type: String
+    Default: m3-demo-orders
+    Description: 'DynamoDB orders table used by the order-status Lambda target'
 Resources:
   GatewayRole:
     Type: AWS::IAM::Role
@@ -24,14 +38,38 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: '*'
+        - PolicyName: PolicyEngineAuthorization
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:GetPolicyEngine
+                Resource: !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:policy-engine/*'
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:AuthorizeAction
+                  - bedrock-agentcore:PartiallyAuthorizeActions
+                Resource:
+                  - !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:policy-engine/*'
+                  - !Sub 'arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*'
 
-  ToolGateway:
+  # Renamed from ToolGateway (name mladas-tool-gateway): AuthorizerType cannot be updated in place and gateway names are unique, so CloudFormation creates this one then deletes the old.
+  SecuredToolGateway:
     Type: AWS::BedrockAgentCore::Gateway
     DependsOn: GatewayRole
     Properties:
-      Name: mladas-tool-gateway
+      Name: mladas-tool-gateway-jwt
       Description: 'Centralized MCP-compatible tool gateway for TechMart demos'
-      AuthorizerType: NONE
+      AuthorizerType: CUSTOM_JWT
+      AuthorizerConfiguration:
+        CustomJWTAuthorizer:
+          DiscoveryUrl: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPoolId}/.well-known/openid-configuration'
+          AllowedAudience:
+            - !Ref CognitoClientId
+      PolicyEngineConfiguration:
+        Arn: !Ref PolicyEngineArn
+        Mode: ENFORCE
       RoleArn: !GetAtt GatewayRole.Arn
       ProtocolConfiguration:
         Mcp:
@@ -40,7 +78,7 @@ Resources:
   ProductLookupTarget:
     Type: AWS::BedrockAgentCore::GatewayTarget
     Properties:
-      GatewayIdentifier: !Ref ToolGateway
+      GatewayIdentifier: !Ref SecuredToolGateway
       Name: product-lookup
       Description: 'Look up TechMart product details including specs, price, and availability.'
       CredentialProviderConfigurations:
@@ -80,7 +118,7 @@ Resources:
   CompatibilityCheckTarget:
     Type: AWS::BedrockAgentCore::GatewayTarget
     Properties:
-      GatewayIdentifier: !Ref ToolGateway
+      GatewayIdentifier: !Ref SecuredToolGateway
       Name: compatibility-check
       Description: 'Check compatibility between two TechMart products for smart home integration.'
       CredentialProviderConfigurations:
@@ -118,71 +156,120 @@ Resources:
                       "200":
                         description: Compatibility result
 
+  OrderStatusRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: mladas-order-status-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: OrdersTableAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OrdersTableName}'
+  OrderStatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: mladas-order-status-tool
+      Description: 'Backend for the order-status gateway target. Authorization is enforced by the AgentCore Policy Engine before this runs.'
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt OrderStatusRole.Arn
+      Timeout: 15
+      Environment:
+        Variables:
+          ORDERS_TABLE: !Ref OrdersTableName
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+
+          table = boto3.resource("dynamodb").Table(os.environ["ORDERS_TABLE"])
+
+
+          def handler(event, context):
+              # The gateway puts "<target>___<tool>" in the client context.
+              full = context.client_context.custom.get("bedrockAgentCoreToolName", "")
+              tool = full.split("___")[-1]
+              order_id = event.get("orderId", "")
+              if tool == "orderStatus":
+                  item = table.get_item(Key={"order_id": order_id}).get("Item")
+                  if not item:
+                      return {"found": False, "orderId": order_id}
+                  return {"found": True, "orderId": order_id, "status": item.get("status"),
+                          "total": str(item.get("total")), "customerId": item.get("customer_id")}
+              if tool == "processRefund":
+                  amount = int(event.get("amount", 0))
+                  table.update_item(
+                      Key={"order_id": order_id},
+                      UpdateExpression="SET #s = :s, refund_amount = :a, refund_reason = :r",
+                      ExpressionAttributeNames={"#s": "status"},
+                      ExpressionAttributeValues={":s": "refunded", ":a": amount, ":r": event.get("reason", "")},
+                  )
+                  return {"refunded": True, "orderId": order_id, "amount": amount}
+              return {"error": "unknown tool " + full}
   OrderStatusTarget:
     Type: AWS::BedrockAgentCore::GatewayTarget
     Properties:
-      GatewayIdentifier: !Ref ToolGateway
+      GatewayIdentifier: !Ref SecuredToolGateway
       Name: order-status
-      Description: 'Check order status, delivery tracking, and return eligibility.'
+      Description: 'Check order status and process refunds (refunds are authorized by Cedar policy).'
       CredentialProviderConfigurations:
         - CredentialProviderType: GATEWAY_IAM_ROLE
-          CredentialProvider:
-            IamCredentialProvider:
-              Service: lambda
-              Region: !Ref AWS::Region
       TargetConfiguration:
         Mcp:
-          OpenApiSchema:
-            InlinePayload: |
-              openapi: "3.0.0"
-              info:
-                title: Order Status
-                version: "1.0"
-              servers:
-                - url: https://api.techmart.example.com
-              paths:
-                /status:
-                  post:
-                    operationId: orderStatus
-                    summary: Check order status
-                    requestBody:
-                      content:
-                        application/json:
-                          schema:
-                            type: object
-                            properties:
-                              order_id:
-                                type: string
-                    responses:
-                      "200":
-                        description: Order details
-                /refund:
-                  post:
-                    operationId: processRefund
-                    summary: Process a refund on an order
-                    requestBody:
-                      content:
-                        application/json:
-                          schema:
-                            type: object
-                            properties:
-                              order_id:
-                                type: string
-                              amount:
-                                type: integer
-                              reason:
-                                type: string
-                    responses:
-                      "200":
-                        description: Refund result
-
+          Lambda:
+            LambdaArn: !GetAtt OrderStatusFunction.Arn
+            ToolSchema:
+              InlinePayload:
+                - Name: orderStatus
+                  Description: 'Check the status and total of an order'
+                  InputSchema:
+                    Type: object
+                    Properties:
+                      orderId:
+                        Type: string
+                        Description: 'Order ID, for example ORD-5002'
+                    Required:
+                      - orderId
+                - Name: processRefund
+                  Description: 'Process a refund on an order. Subject to Cedar policy on the caller role, department and amount.'
+                  InputSchema:
+                    Type: object
+                    Properties:
+                      orderId:
+                        Type: string
+                        Description: 'Order ID, for example ORD-5002'
+                      amount:
+                        Type: integer
+                        Description: 'Refund amount in whole dollars'
+                      reason:
+                        Type: string
+                        Description: 'Reason for the refund'
+                    Required:
+                      - orderId
+                      - amount
 Outputs:
+  GatewayUrl:
+    Value: !GetAtt SecuredToolGateway.GatewayUrl
   GatewayId:
-    Value: !Ref ToolGateway
+    Value: !Ref SecuredToolGateway
     Export:
       Name: mladas-gateway-id
 
   GatewayArn:
-    Value: !GetAtt ToolGateway.GatewayArn
+    Value: !GetAtt SecuredToolGateway.GatewayArn
     Export:
       Name: mladas-gateway-arn

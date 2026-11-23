@@ -20,8 +20,8 @@ echo "=============================================="
 STACKS=(
     "memory:cfn-agentcore-memory.yaml"
     "evaluator:cfn-agentcore-evaluator.yaml"
-    "gateway:cfn-agentcore-gateway.yaml"
     "policy:cfn-agentcore-policy.yaml"
+    "gateway:cfn-agentcore-gateway.yaml"
     "policies:cfn-agentcore-policies.yaml"
     "guardrail:cfn-bedrock-guardrail.yaml"
 )
@@ -29,7 +29,9 @@ STACKS=(
 if [ "$ACTION" == "destroy" ]; then
     echo ""
     echo "⚠️  Destroying stacks..."
-    for entry in "${STACKS[@]}"; do
+    # Reverse order: policies depend on the gateway and engine, the gateway on the engine.
+    for ((i=${#STACKS[@]}-1; i>=0; i--)); do
+        entry="${STACKS[$i]}"
         name="${entry%%:*}"
         stack_name="${PREFIX}-${name}"
         if [ "$COMPONENT" != "all" ] && [ "$COMPONENT" != "$name" ]; then
@@ -44,6 +46,7 @@ if [ "$ACTION" == "destroy" ]; then
 fi
 
 echo ""
+FAILED=0
 echo "📦 Deploying..."
 echo ""
 
@@ -58,6 +61,21 @@ for entry in "${STACKS[@]}"; do
 
     echo -n "  [$name] $stack_name..."
     EXTRA_PARAMS=""
+    if [ "$name" == "gateway" ]; then
+        # Gateway validates Cognito JWTs and enforces the policy engine.
+        out() { aws cloudformation describe-stacks --stack-name "$1" --region "$REGION" \
+            --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" --output text 2>/dev/null; }
+        POOL_ID=$(out m3-demo-cognito UserPoolId)
+        CLIENT_ID=$(out m3-demo-cognito UserPoolClientId)
+        ENGINE_ARN=$(out "${PREFIX}-policy" PolicyEngineArn)
+        for v in "$POOL_ID" "$CLIENT_ID" "$ENGINE_ARN"; do
+            if [ -z "$v" ] || [ "$v" == "None" ]; then
+                echo " ✗ (needs m3-demo-cognito and ${PREFIX}-policy stacks: run demos/module3-security/scripts/deploy.sh and ./deploy.sh deploy policy first)"
+                continue 2
+            fi
+        done
+        EXTRA_PARAMS="--parameter-overrides CognitoUserPoolId=$POOL_ID CognitoClientId=$CLIENT_ID PolicyEngineArn=$ENGINE_ARN"
+    fi
     if [ "$name" == "policies" ]; then
         # Get PolicyEngineId from the policy engine stack
         POLICY_ENGINE_ID=$(aws cloudformation describe-stacks \
@@ -86,10 +104,12 @@ for entry in "${STACKS[@]}"; do
         --region "$REGION" \
         --capabilities CAPABILITY_NAMED_IAM \
         --no-fail-on-empty-changeset \
-        --tags Project=mladas-demo $EXTRA_PARAMS 2>/dev/null; then
+        --tags Project=mladas-demo $EXTRA_PARAMS >/tmp/agentcore-deploy-$name.log 2>&1; then
         echo " ✓"
     else
-        echo " ✗ (check events)"
+        echo " ✗ (see /tmp/agentcore-deploy-$name.log)"
+        tail -5 "/tmp/agentcore-deploy-$name.log" | sed 's/^/      /'
+        FAILED=1
     fi
 done
 
@@ -128,5 +148,6 @@ done
 
 echo ""
 echo "  Config: source config.env"
+if [ "$FAILED" == "1" ]; then echo "  ❌ One or more stacks failed."; exit 1; fi
 echo "  ✅ Done."
 echo ""

@@ -110,3 +110,15 @@ model = BedrockModel(
     guardrail_version=os.environ['GuardrailVersion'],
 )
 ```
+
+
+## Gateway authorization (Module 3)
+
+`mladas-tool-gateway-jwt` validates Cognito JWTs (`CUSTOM_JWT`, audience = the `m3-demo-cognito` app client) and
+has the `mladas_policy_engine` attached in `ENFORCE` mode. JWT claims become principal tags, so the Cedar policies
+read `custom:role` and `custom:department`. The `order-status` target is a Lambda (`mladas-order-status-tool`)
+exposing `orderStatus` and `processRefund`; refunds are only reachable if a Cedar policy permits them.
+
+Deploy order matters: `m3-demo-cognito` (module 3 `deploy.sh`) -> `policy` -> `gateway` -> `policies`.
+`./deploy.sh deploy all` follows it. The gateway was renamed from `mladas-tool-gateway` because the authorizer
+type cannot be changed in place.

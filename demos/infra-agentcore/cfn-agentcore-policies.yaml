@@ -59,6 +59,86 @@ Resources:
               resource == AgentCore::Gateway::"${GatewayArn}"
             );
 
+  # --- Refund policies (Module 3). JWT claims arrive as string tags on the OAuthUser
+  # principal. Cognito ID tokens carry the custom attributes as custom:role / custom:department.
+  RefundFinanceAdminPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: refund_finance_admin
+      Description: 'Finance admins can refund any amount'
+      ValidationMode: IGNORE_ALL_FINDINGS
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            permit (
+              principal is AgentCore::OAuthUser,
+              action == AgentCore::Action::"order-status___processRefund",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            ) when {
+              principal.hasTag("custom:department") &&
+              principal.hasTag("custom:role") &&
+              principal.getTag("custom:department") == "finance" &&
+              principal.getTag("custom:role") == "admin"
+            };
+  RefundSupportAgentPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: refund_support_agent_under_500
+      Description: 'Support agents can refund under $500'
+      ValidationMode: IGNORE_ALL_FINDINGS
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            permit (
+              principal is AgentCore::OAuthUser,
+              action == AgentCore::Action::"order-status___processRefund",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            ) when {
+              principal.hasTag("custom:department") &&
+              principal.hasTag("custom:role") &&
+              principal.getTag("custom:department") == "support" &&
+              principal.getTag("custom:role") == "agent" &&
+              context.input.amount < 500
+            };
+  RefundSecurityLeadPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: refund_security_lead_under_5000
+      Description: 'Security leads can refund under $5,000'
+      ValidationMode: IGNORE_ALL_FINDINGS
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            permit (
+              principal is AgentCore::OAuthUser,
+              action == AgentCore::Action::"order-status___processRefund",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            ) when {
+              principal.hasTag("custom:role") &&
+              principal.getTag("custom:role") == "security_lead" &&
+              context.input.amount < 5000
+            };
+  ForbidEngineeringRefundPolicy:
+    Type: AWS::BedrockAgentCore::Policy
+    Properties:
+      PolicyEngineId: !Ref PolicyEngineId
+      Name: forbid_engineering_refund
+      Description: 'Engineering can never refund (forbid wins over any permit)'
+      ValidationMode: IGNORE_ALL_FINDINGS
+      Definition:
+        Cedar:
+          Statement: !Sub |
+            forbid (
+              principal is AgentCore::OAuthUser,
+              action == AgentCore::Action::"order-status___processRefund",
+              resource == AgentCore::Gateway::"${GatewayArn}"
+            ) when {
+              principal.hasTag("custom:department") &&
+              principal.getTag("custom:department") == "engineering"
+            };
 Outputs:
   AllowProductLookupPolicyId:
     Value: !GetAtt AllowProductLookupPolicy.PolicyId

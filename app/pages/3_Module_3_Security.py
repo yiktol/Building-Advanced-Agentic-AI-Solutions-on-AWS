@@ -32,6 +32,21 @@ def _cfg(key, default=""):
 
 POLICY_STORE_ID = _cfg("PolicyStoreId", os.environ.get("POLICY_STORE_ID", ""))
 
+from agentcore_utils import cognito_id_token, call_gateway_tool
+
+
+def gateway_tool_report(res: dict, user: dict, action: str, amount=None, order_id: str = "") -> str:
+    """Turn an AgentCore Gateway response into a report for the agent. The decision is the Policy Engine's."""
+    ctx = f"\n  context.input.amount: {amount}" if amount is not None else ""
+    who = f"\n  Principal (JWT): {user['email']}\n  Tags: custom:role={user['role']}, custom:department={user['department']}"
+    if res["decision"] == "ALLOW":
+        return f"✅ ALLOWED by AgentCore Policy Engine (Cedar, enforced at the Gateway).\n  Action: {action}{who}{ctx}\n  Gateway result: {res['message']}"
+    if res["decision"] == "DENY":
+        why = f"forbid policy `{res['policy']}` matched" if res["policy"] else "no permit policy matched (default deny)"
+        return f"🚫 DENIED by AgentCore Policy Engine (Cedar, enforced at the Gateway).\n  Action: {action}{who}{ctx}\n  Reason: {why}\n  Engine message: {res['message']}"
+    return f"⚠ Gateway error (no policy decision): {res['message']}"
+
+
 # --- Sidebar Controls ---
 with st.sidebar:
     st.markdown("### 3️⃣ Module 3")
@@ -229,8 +244,8 @@ permit (
   action == AgentCore::Action::"order-status___processRefund",
   resource == AgentCore::Gateway::"<gateway-arn>"
 ) when {
-  principal.getTag("department") == "finance" &&
-  principal.getTag("role") == "admin"
+  principal.getTag("custom:department") == "finance" &&
+  principal.getTag("custom:role") == "admin"
 };
 
 # Policy 2: Support agent — refunds under $500
@@ -239,8 +254,8 @@ permit (
   action == AgentCore::Action::"order-status___processRefund",
   resource == AgentCore::Gateway::"<gateway-arn>"
 ) when {
-  principal.getTag("department") == "support" &&
-  principal.getTag("role") == "agent" &&
+  principal.getTag("custom:department") == "support" &&
+  principal.getTag("custom:role") == "agent" &&
   context.input.amount < 500
 };
 
@@ -250,7 +265,7 @@ permit (
   action == AgentCore::Action::"order-status___processRefund",
   resource == AgentCore::Gateway::"<gateway-arn>"
 ) when {
-  principal.getTag("role") == "security_lead" &&
+  principal.getTag("custom:role") == "security_lead" &&
   context.input.amount < 5000
 };
 
@@ -260,7 +275,7 @@ forbid (
   action == AgentCore::Action::"order-status___processRefund",
   resource == AgentCore::Gateway::"<gateway-arn>"
 ) when {
-  principal.getTag("department") == "engineering"
+  principal.getTag("custom:department") == "engineering"
 };
 
 # Policy 5: Everyone can view orders
@@ -309,28 +324,28 @@ You must NOT apply business judgment, common sense, or opinions about whether an
 **Policy 1 — Finance Admin:**
 ```cedar
 permit (principal, action == AgentCore::Action::"order-status___processRefund", resource)
-when { principal.getTag("department") == "finance" && principal.getTag("role") == "admin" };
+when { principal.getTag("custom:department") == "finance" && principal.getTag("custom:role") == "admin" };
 ```
 → Conditions: department="finance" AND role="admin". NO amount limit. ANY amount is valid.
 
 **Policy 2 — Support Agent:**
 ```cedar
 permit (principal, action == AgentCore::Action::"order-status___processRefund", resource)
-when { principal.getTag("department") == "support" && principal.getTag("role") == "agent" && context.input.amount < 500 };
+when { principal.getTag("custom:department") == "support" && principal.getTag("custom:role") == "agent" && context.input.amount < 500 };
 ```
 → Conditions: department="support" AND role="agent" AND amount < 500.
 
 **Policy 3 — Security Lead:**
 ```cedar
 permit (principal, action == AgentCore::Action::"order-status___processRefund", resource)
-when { principal.getTag("role") == "security_lead" && context.input.amount < 5000 };
+when { principal.getTag("custom:role") == "security_lead" && context.input.amount < 5000 };
 ```
 → Conditions: role="security_lead" AND amount < 5000.
 
 **Policy 4 — FORBID Engineers:**
 ```cedar
 forbid (principal, action == AgentCore::Action::"order-status___processRefund", resource)
-when { principal.getTag("department") == "engineering" };
+when { principal.getTag("custom:department") == "engineering" };
 ```
 → FORBID always wins. Any user with department="engineering" is DENIED regardless of other policies.
 
@@ -412,48 +427,32 @@ Was the correct Cedar policy applied? Was the ALLOW/DENY decision correct given 
     if st.session_state.m3p2_agent is None:
         current_user = st.session_state.m3p2_user
 
-        # Simulate AgentCore Policy Engine evaluation (same logic the Gateway applies)
-        def evaluate_agentcore_policy(action: str, context_input: dict) -> str:
-            """Evaluate Cedar policies using AgentCore entity model. Forbid-wins, default-deny."""
-            role = current_user["role"]
-            dept = current_user["department"]
-            amount = context_input.get("amount", 0)
+        # Real authorization: the Gateway validates the user's Cognito JWT and the attached
+        # AgentCore Policy Engine evaluates the Cedar policies. Nothing is decided in this app.
+        _token_cache = {}
 
-            if action == "order-status___processRefund":
-                # Policy 4: forbid engineers (forbid wins)
-                if dept == "engineering":
-                    return "DENY"
-                # Policy 1: finance admin unlimited
-                if dept == "finance" and role == "admin":
-                    return "ALLOW"
-                # Policy 2: support agent < $500
-                if dept == "support" and role == "agent" and amount < 500:
-                    return "ALLOW"
-                # Policy 3: security_lead < $5000
-                if role == "security_lead" and amount < 5000:
-                    return "ALLOW"
-                return "DENY"  # Default deny
-            elif action == "order-status___orderStatus":
-                return "ALLOW"  # Policy 5: everyone
-            return "DENY"
+        def _jwt():
+            if current_user["email"] not in _token_cache:
+                _token_cache[current_user["email"]] = cognito_id_token(current_user["email"])
+            return _token_cache[current_user["email"]]
 
         @tool
         def process_refund(order_id: str, amount: float, reason: str) -> str:
-            """Process refund. AgentCore Policy Engine evaluates Cedar policies before execution. Args: order_id: order ID, amount: refund amount in dollars, reason: reason for refund"""
-            decision = evaluate_agentcore_policy("order-status___processRefund", {"orderId": order_id, "amount": amount, "reason": reason})
-            if decision != "ALLOW":
-                return f"🚫 DENIED by AgentCore Policy.\n  Principal: AgentCore::OAuthUser::\"{current_user['email']}\"\n  Action: AgentCore::Action::\"order-status___processRefund\"\n  context.input.amount: {amount}\n  Tags: role={current_user['role']}, department={current_user['department']}"
-            return f"✅ ALLOWED by AgentCore Policy: ${amount} refund on {order_id}.\n  Principal: AgentCore::OAuthUser::\"{current_user['email']}\"\n  Matched permit for {current_user['role']}/{current_user['department']}"
+            """Process refund. The AgentCore Gateway enforces Cedar policies before execution. Args: order_id: order ID, amount: refund amount in whole dollars, reason: reason for refund"""
+            try:
+                res = call_gateway_tool(_jwt(), "order-status___processRefund", {"orderId": order_id, "amount": int(amount), "reason": reason})
+            except Exception as e:
+                return f"⚠ Could not authenticate or reach the gateway: {e}"
+            return gateway_tool_report(res, current_user, 'AgentCore::Action::"order-status___processRefund"', amount=int(amount))
 
         @tool
         def view_order(order_id: str) -> str:
             """View order details. Args: order_id: order ID"""
-            decision = evaluate_agentcore_policy("order-status___orderStatus", {"orderId": order_id})
-            if decision != "ALLOW":
-                return f"🚫 DENIED: ViewOrder on {order_id}"
-            orders = {"ORD-5001": "$220", "ORD-5002": "$799", "ORD-5003": "$237", "ORD-5005": "$834", "ORD-5006": "$7990"}
-            total = orders.get(order_id, "$0")
-            return f"✅ ALLOWED: Order {order_id}: Delivered. Total {total}."
+            try:
+                res = call_gateway_tool(_jwt(), "order-status___orderStatus", {"orderId": order_id})
+            except Exception as e:
+                return f"⚠ Could not authenticate or reach the gateway: {e}"
+            return gateway_tool_report(res, current_user, 'AgentCore::Action::"order-status___orderStatus"')
 
         st.session_state.m3p2_agent = create_agent(
             f"You are a policy-protected TechMart agent. Current user: {current_user['hero_name']} (role={current_user['role']}, department={current_user['department']}). "
@@ -515,6 +514,7 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
 
     if "m3p3_authenticated" not in st.session_state:
         st.session_state.m3p3_authenticated = False
+        st.session_state.m3p3_id_token = ""
         st.session_state.m3p3_claims = {}
         st.session_state.m3p3_agent = None
         st.session_state.m3p3_msgs = []
@@ -545,6 +545,7 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
                     parts = id_token.split(".")
                     payload = parts[1] + "=" * (4 - len(parts[1]) % 4)
                     claims = _json.loads(base64.b64decode(payload))
+                    st.session_state.m3p3_id_token = id_token
                     st.session_state.m3p3_authenticated = True
                     st.session_state.m3p3_claims = claims
                     st.session_state.m3p3_agent = None
@@ -574,41 +575,21 @@ Real OAuth 2.0: a Cognito JWT's claims become the principal tags that drive the 
             if st.session_state.m3p3_agent is None:
                 current_user = {"role": role, "department": dept, "email": claims.get("email", ""), "hero_name": hero_name}
 
-                def evaluate_policy_from_jwt(action: str, context_input: dict) -> str:
-                    """Evaluate Cedar policies using JWT-derived principal tags."""
-                    r = current_user["role"]
-                    d = current_user["department"]
-                    amount = context_input.get("amount", 0)
-                    if action == "order-status___processRefund":
-                        if d == "engineering":
-                            return "DENY"
-                        if d == "finance" and r == "admin":
-                            return "ALLOW"
-                        if d == "support" and r == "agent" and amount < 500:
-                            return "ALLOW"
-                        if r == "security_lead" and amount < 5000:
-                            return "ALLOW"
-                        return "DENY"
-                    elif action == "order-status___orderStatus":
-                        return "ALLOW"
-                    return "DENY"
+                # Real authorization: the Gateway validates this user's Cognito JWT and the attached
+                # AgentCore Policy Engine evaluates the Cedar policies. Nothing is decided in this app.
+                id_token = st.session_state.m3p3_id_token
 
                 @tool
                 def process_refund(order_id: str, amount: float, reason: str) -> str:
-                    """Process refund. Cedar policies enforced using JWT claims. Args: order_id: order ID, amount: refund dollars, reason: reason"""
-                    decision = evaluate_policy_from_jwt("order-status___processRefund", {"orderId": order_id, "amount": amount, "reason": reason})
-                    if decision != "ALLOW":
-                        return f"🚫 DENIED by AgentCore Policy.\n  Principal (from JWT): {current_user['email']}\n  Tags: role={current_user['role']}, department={current_user['department']}\n  context.input.amount: {amount}"
-                    return f"✅ ALLOWED by AgentCore Policy: ${amount} refund on {order_id}.\n  Principal (from JWT): {current_user['email']}\n  Matched permit for role={current_user['role']}, department={current_user['department']}"
+                    """Process refund. The AgentCore Gateway enforces Cedar policies using the JWT claims. Args: order_id: order ID, amount: refund dollars, reason: reason"""
+                    res = call_gateway_tool(id_token, "order-status___processRefund", {"orderId": order_id, "amount": int(amount), "reason": reason})
+                    return gateway_tool_report(res, current_user, 'AgentCore::Action::"order-status___processRefund"', amount=int(amount))
 
                 @tool
                 def view_order(order_id: str) -> str:
                     """View order details. Args: order_id: order ID"""
-                    decision = evaluate_policy_from_jwt("order-status___orderStatus", {"orderId": order_id})
-                    if decision != "ALLOW":
-                        return f"🚫 DENIED: ViewOrder on {order_id}"
-                    orders = {"ORD-5001": "$220", "ORD-5002": "$799", "ORD-5003": "$237", "ORD-5005": "$834", "ORD-5006": "$7990"}
-                    return f"✅ ALLOWED: Order {order_id}: Delivered. Total {orders.get(order_id, '$0')}."
+                    res = call_gateway_tool(id_token, "order-status___orderStatus", {"orderId": order_id})
+                    return gateway_tool_report(res, current_user, 'AgentCore::Action::"order-status___orderStatus"')
 
                 st.session_state.m3p3_agent = create_agent(
                     f"You are a policy-protected TechMart agent. The current user authenticated via Cognito: {hero_name} (role={role}, department={dept}). "

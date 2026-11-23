@@ -279,3 +279,76 @@ def get_agentcore_status() -> dict:
         "gateway": bool(_get_config("GatewayId")),
         "region": REGION,
     }
+
+
+# =============================================================================
+# AGENTCORE GATEWAY + POLICY ENGINE (Module 3)
+# =============================================================================
+# Authorization is NOT evaluated in this app. Tool calls go to the AgentCore
+# Gateway with the caller's Cognito JWT; the Gateway validates the token,
+# turns its claims into principal tags and asks the attached Policy Engine
+# (Cedar) for the decision. The app only reports what the Gateway returns.
+
+DEMO_USER_PASSWORD = os.environ.get("DEMO_USER_PASSWORD", "Hero$ecure1!")
+
+
+def gateway_mcp_url() -> str:
+    """MCP endpoint of the policy-enforcing gateway, or '' if not deployed."""
+    base = _get_config("GatewayUrl")
+    return base.rstrip("/") + "/mcp" if base else ""
+
+
+def cognito_id_token(email: str, password: str = "") -> str:
+    """Authenticate a demo user against Cognito and return the ID token (JWT)."""
+    import boto3
+    client_id = _get_config("UserPoolClientId") or _get_config("CognitoClientId")
+    if not client_id:
+        raise RuntimeError("Cognito client ID not configured (deploy Module 3 infrastructure)")
+    resp = boto3.client("cognito-idp", region_name=REGION).initiate_auth(
+        ClientId=client_id,
+        AuthFlow="USER_PASSWORD_AUTH",
+        AuthParameters={"USERNAME": email, "PASSWORD": password or DEMO_USER_PASSWORD},
+    )
+    return resp["AuthenticationResult"]["IdToken"]
+
+
+def call_gateway_tool(id_token: str, tool_name: str, arguments: dict) -> dict:
+    """Call an MCP tool through the AgentCore Gateway as the JWT's user.
+
+    Returns {"decision": "ALLOW" | "DENY" | "ERROR", "message": str, "policy": str}.
+    "policy" is the matching policy name when the engine reports one (forbid hits).
+    """
+    import re
+    import urllib.request
+    import urllib.error
+
+    url = gateway_mcp_url()
+    if not url:
+        return {"decision": "ERROR", "message": "AgentCore Gateway URL not configured (deploy demos/infra-agentcore)", "policy": ""}
+    body = json.dumps({
+        "jsonrpc": "2.0", "id": str(uuid.uuid4()), "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }).encode()
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "Content-Type": "application/json", "Authorization": f"Bearer {id_token}"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode()[:300]
+        return {"decision": "ERROR", "message": f"Gateway rejected the request (HTTP {e.code}): {detail}", "policy": ""}
+    except Exception as e:
+        return {"decision": "ERROR", "message": f"Gateway call failed: {e}", "policy": ""}
+
+    err = data.get("error")
+    if err:
+        msg = err.get("message", "")
+        if "denied" in msg.lower():
+            m = re.search(r"denied due to ([\w\-]+?)(?:-[a-z0-9_]{10})?\]", msg)
+            return {"decision": "DENY", "message": msg, "policy": m.group(1) if m else ""}
+        return {"decision": "ERROR", "message": msg, "policy": ""}
+    result = data.get("result", {})
+    text = " ".join(c.get("text", "") for c in result.get("content", []))
+    if result.get("isError"):
+        return {"decision": "DENY" if "denied" in text.lower() else "ERROR", "message": text, "policy": ""}
+    return {"decision": "ALLOW", "message": text, "policy": ""}
