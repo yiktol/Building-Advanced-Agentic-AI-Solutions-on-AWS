@@ -1,11 +1,17 @@
 #!/bin/bash
 # Deploy AgentCore infrastructure for demo improvements
 # Usage: ./deploy.sh [deploy|destroy] [component]
-# Components: memory, evaluator, gateway, policy, guardrail, all
+# Components: memory, evaluator, policy, gateway, policies, guardrail, all
+# The gateway needs the m3-demo-cognito stack (demos/module3-security/scripts/deploy.sh) first.
 
-set -e
+set -eo pipefail
 
-REGION="${AWS_DEFAULT_REGION:-ap-southeast-1}"
+# Always run relative to this directory (templates are referenced by file name).
+cd "$(dirname "$0")"
+
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-ap-southeast-1}}"
+export AWS_DEFAULT_REGION="$REGION"
+aws sts get-caller-identity >/dev/null 2>&1 || { echo "✗ AWS credentials missing or expired (try: aws sso login)"; exit 1; }
 PREFIX="mladas-agentcore"
 ACTION="${1:-deploy}"
 COMPONENT="${2:-all}"

@@ -93,9 +93,29 @@ else
   echo "  ✅ .env updated"
 fi
 
-# --- Step 3: Restart service ---
+# --- Step 3: Install requirements (picks up new or upgraded dependencies), then restart ---
 echo ""
-echo "3/3 Restarting Streamlit service..."
+echo "3/3 Installing requirements and restarting Streamlit service..."
+CMD_ID=$(aws ssm send-command \
+  --instance-ids "$INSTANCE_ID" \
+  --region "$REGION" \
+  --document-name "AWS-RunShellScript" \
+  --parameters "{\"commands\":[\"cd $REPO_DIR && sudo -u ubuntu venv/bin/pip install -q -r app/requirements.txt 2>&1 | tail -3\"],\"executionTimeout\":[\"600\"]}" \
+  --query "Command.CommandId" \
+  --output text)
+for _ in $(seq 1 60); do
+  sleep 5
+  PIP_STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+    --region "$REGION" --query "Status" --output text 2>/dev/null || echo "Pending")
+  case "$PIP_STATUS" in Pending|InProgress|Delayed) ;; *) break ;; esac
+done
+if [ "$PIP_STATUS" != "Success" ]; then
+  echo "  ❌ pip install failed (status: $PIP_STATUS)"
+  aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --region "$REGION" \
+    --query "[StandardOutputContent,StandardErrorContent]" --output text
+  exit 1
+fi
+echo "  ✅ requirements installed"
 CMD_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --region "$REGION" \

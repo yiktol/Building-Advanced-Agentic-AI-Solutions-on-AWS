@@ -13,23 +13,10 @@ Opens at http://localhost:8501
 
 ## Prerequisites
 
-- Python 3.10+
-- AWS credentials configured (region: `ap-southeast-1`)
-- Dependencies:
-
-```bash
-pip install streamlit strands-agents strands-agents-tools boto3
-```
-
-- Deploy AgentCore infrastructure (optional — app falls back to local simulation):
-```bash
-cd demos/infra-agentcore && ./deploy.sh
-```
-
-- For Module 3 (Security): Deploy additional infrastructure:
-```bash
-cd demos/module3-security && ./scripts/deploy.sh
-```
+- Python 3.10+ and AWS credentials for the account the demos are deployed in (region `ap-southeast-1`)
+- `pip install -r requirements.txt`
+- Deployed infrastructure: run `./scripts/deploy-all.sh` from the repository root (see the top-level `README.md`).
+  The app reads resource IDs from CloudFormation outputs; parts whose infrastructure is missing say so on the page.
 
 ## App Structure
 
@@ -221,7 +208,7 @@ Based on their history, what should we proactively offer?
 
 ## Module 3: Security & Compliance
 
-> Requires deployed infrastructure: `cd demos/module3-security && ./scripts/deploy.sh && source config.env`
+> Requires deployed infrastructure: `./scripts/deploy-all.sh` (step `m3`).
 
 ### Part 1 — Unprotected Agent
 
