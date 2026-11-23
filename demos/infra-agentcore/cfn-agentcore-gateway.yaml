@@ -261,6 +261,46 @@ Resources:
                     Required:
                       - orderId
                       - amount
+  # --- Log + trace delivery (vended logs) ---
+  GatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/vendedlogs/bedrock-agentcore/gateway/APPLICATION_LOGS/mladas-tool-gateway-jwt
+      RetentionInDays: 30
+  GatewayLogsSource:
+    Type: AWS::Logs::DeliverySource
+    Properties:
+      Name: mladas-gateway-application-logs
+      ResourceArn: !GetAtt SecuredToolGateway.GatewayArn
+      LogType: APPLICATION_LOGS
+  GatewayLogsDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: mladas-gateway-logs-cwl
+      DestinationResourceArn: !GetAtt GatewayLogGroup.Arn
+      OutputFormat: json
+  GatewayLogsDelivery:
+    Type: AWS::Logs::Delivery
+    Properties:
+      DeliverySourceName: !Ref GatewayLogsSource
+      DeliveryDestinationArn: !GetAtt GatewayLogsDestination.Arn
+  GatewayTracesSource:
+    Type: AWS::Logs::DeliverySource
+    Properties:
+      Name: mladas-gateway-traces
+      ResourceArn: !GetAtt SecuredToolGateway.GatewayArn
+      LogType: TRACES
+  GatewayTracesDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: mladas-gateway-traces-xray
+      DeliveryDestinationType: XRAY
+  GatewayTracesDelivery:
+    Type: AWS::Logs::Delivery
+    DependsOn: GatewayLogsDelivery
+    Properties:
+      DeliverySourceName: !Ref GatewayTracesSource
+      DeliveryDestinationArn: !GetAtt GatewayTracesDestination.Arn
 Outputs:
   GatewayUrl:
     Value: !GetAtt SecuredToolGateway.GatewayUrl

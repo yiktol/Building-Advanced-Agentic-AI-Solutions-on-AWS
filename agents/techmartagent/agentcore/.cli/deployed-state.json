@@ -1,0 +1,24 @@
+{
+  "targets": {
+    "default": {
+      "resources": {
+        "runtimes": {
+          "techmart_support": {
+            "runtimeId": "techmartagent_techmart_support-wRYMRAAghS",
+            "runtimeArn": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:runtime/techmartagent_techmart_support-wRYMRAAghS",
+            "roleArn": "arn:aws:iam::875692608981:role/AgentCore-techmartagent-d-ApplicationAgentTechmartS-HhaJDjKoaDSo"
+          }
+        },
+        "onlineEvalConfigs": {
+          "techmart_online_eval": {
+            "onlineEvaluationConfigId": "techmartagent_techmart_online_eval-PaM5gQFP8M",
+            "onlineEvaluationConfigArn": "arn:aws:bedrock-agentcore:ap-southeast-1:875692608981:online-evaluation-config/techmartagent_techmart_online_eval-PaM5gQFP8M",
+            "agent": "techmart_support"
+          }
+        },
+        "stackName": "AgentCore-techmartagent-default",
+        "deployHash": "e12fc9c777d6d904"
+      }
+    }
+  }
+}

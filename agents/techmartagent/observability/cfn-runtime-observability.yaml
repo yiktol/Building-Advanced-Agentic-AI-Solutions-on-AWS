@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Vended log and trace delivery for the techmart_support AgentCore Runtime:
+  APPLICATION_LOGS and USAGE_LOGS to CloudWatch Logs, TRACES to X-Ray (Transaction Search).
+  The runtime itself is deployed by the AgentCore CLI (stack AgentCore-techmartagent-default).
+
+Parameters:
+  RuntimeArn:
+    Type: String
+    Description: 'Runtime ARN (AgentCore-techmartagent-default output ApplicationAgentTechmartSupportRuntimeArnOutput...)'
+  RuntimeId:
+    Type: String
+    Description: 'Runtime ID, used to name the log groups'
+  RetentionDays:
+    Type: Number
+    Default: 30
+
+Resources:
+  ApplicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/bedrock-agentcore/runtime/APPLICATION_LOGS/${RuntimeId}'
+      RetentionInDays: !Ref RetentionDays
+  UsageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/bedrock-agentcore/runtime/USAGE_LOGS/${RuntimeId}'
+      RetentionInDays: !Ref RetentionDays
+
+  # Application logs -> CloudWatch Logs
+  AppLogsSource:
+    Type: AWS::Logs::DeliverySource
+    Properties:
+      Name: techmart-runtime-app-logs
+      ResourceArn: !Ref RuntimeArn
+      LogType: APPLICATION_LOGS
+  AppLogsDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: techmart-runtime-app-logs-cwl
+      DestinationResourceArn: !GetAtt ApplicationLogGroup.Arn
+      OutputFormat: json
+  AppLogsDelivery:
+    Type: AWS::Logs::Delivery
+    Properties:
+      DeliverySourceName: !Ref AppLogsSource
+      DeliveryDestinationArn: !GetAtt AppLogsDestination.Arn
+
+  # Usage logs (vCPU / memory consumption per session) -> CloudWatch Logs
+  UsageLogsSource:
+    Type: AWS::Logs::DeliverySource
+    Properties:
+      Name: techmart-runtime-usage-logs
+      ResourceArn: !Ref RuntimeArn
+      LogType: USAGE_LOGS
+  UsageLogsDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: techmart-runtime-usage-logs-cwl
+      DestinationResourceArn: !GetAtt UsageLogGroup.Arn
+      OutputFormat: json
+  UsageLogsDelivery:
+    Type: AWS::Logs::Delivery
+    DependsOn: AppLogsDelivery
+    Properties:
+      DeliverySourceName: !Ref UsageLogsSource
+      DeliveryDestinationArn: !GetAtt UsageLogsDestination.Arn
+
+  # Service-side traces -> X-Ray (indexed into aws/spans by Transaction Search)
+  TracesSource:
+    Type: AWS::Logs::DeliverySource
+    Properties:
+      Name: techmart-runtime-traces
+      ResourceArn: !Ref RuntimeArn
+      LogType: TRACES
+  TracesDestination:
+    Type: AWS::Logs::DeliveryDestination
+    Properties:
+      Name: techmart-runtime-traces-xray
+      DeliveryDestinationType: XRAY
+  TracesDelivery:
+    Type: AWS::Logs::Delivery
+    DependsOn: UsageLogsDelivery
+    Properties:
+      DeliverySourceName: !Ref TracesSource
+      DeliveryDestinationArn: !GetAtt TracesDestination.Arn
+
+Outputs:
+  ApplicationLogGroupName:
+    Value: !Ref ApplicationLogGroup
+  UsageLogGroupName:
+    Value: !Ref UsageLogGroup

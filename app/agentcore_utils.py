@@ -61,6 +61,7 @@ def _load_cfn_outputs() -> dict:
         "m3-demo-cognito",
         "m3-demo-verified-permissions",
         "m4-demo-observability",
+        "AgentCore-techmartagent-default",
     ]
     outputs = {}
     try:
@@ -71,7 +72,13 @@ def _load_cfn_outputs() -> dict:
             try:
                 resp = cfn.describe_stacks(StackName=stack_name)
                 for output in resp["Stacks"][0].get("Outputs", []):
-                    outputs[output["OutputKey"]] = output["OutputValue"]
+                    key = output["OutputKey"]
+                    # The AgentCore CLI (CDK) appends a hash to output keys; expose stable names.
+                    for prefix, alias in (("ApplicationAgentTechmartSupportRuntimeArnOutput", "TechmartRuntimeArn"),
+                                          ("ApplicationOnlineEvalTechmartOnlineEvalIdOutput", "TechmartOnlineEvalId")):
+                        if key.startswith(prefix):
+                            key = alias
+                    outputs[key] = output["OutputValue"]
             except (ClientError, Exception):
                 continue
     except Exception:

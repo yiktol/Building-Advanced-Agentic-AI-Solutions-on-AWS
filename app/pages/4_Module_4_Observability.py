@@ -13,6 +13,7 @@ from style import inject_css, part_header, live_services_caption, show_diagram, 
 from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, estimate_cost, MODEL_ID, stream_chat
 from strands import tool
 import telemetry
+import runtime_client
 
 st.set_page_config(page_title="Module 4: Observability", page_icon="4️⃣", layout="wide")
 inject_css()
@@ -169,6 +170,17 @@ Every interaction emits latency, token, and tool metrics and records a Session �
                     mc4.metric("🔧 Tools", m.get("toolCalls", 0))
                     mc5.metric("Σ Total", f"{m.get('totalTokens', 0):,}")
 
+    _use_runtime = runtime_client.is_configured()
+    if _use_runtime:
+        if "m4p1_rt_session" not in st.session_state:
+            st.session_state.m4p1_rt_session = runtime_client.new_session_id()
+        st.info(
+            f"🛰 Requests go to the deployed agent on **AgentCore Runtime** (`{runtime_client.runtime_id()}`). "
+            "The runtime emits OpenTelemetry traces (ADOT) to CloudWatch Transaction Search, application and usage logs "
+            "through vended log delivery, and the online evaluation config scores each session."
+        )
+    else:
+        st.caption("AgentCore Runtime agent not deployed; using the in-process agent.")
     if prompt := (st.chat_input("Ask about products...", submit_mode="disable") or take_sample_prompt('m4p1')):
         st.session_state.m4p1_msgs.append({"role": "user", "content": prompt})
         tool_counter[0] = 0
@@ -177,10 +189,32 @@ Every interaction emits latency, token, and tool metrics and records a Session �
             st.markdown(prompt)
         with st.chat_message("assistant"):
             import time as _t; _s = _t.time()
-            resp, metrics = stream_chat(st.session_state.m4p1_agent, prompt, "Processing...")
+            if _use_runtime:
+                _box = st.empty()
+                _buf = []
+
+                def _on_text(chunk):
+                    _buf.append(chunk)
+                    _box.markdown("".join(_buf) + "▌")
+
+                try:
+                    with st.spinner("Invoking AgentCore Runtime..."):
+                        rt = runtime_client.invoke_runtime(prompt, st.session_state.m4p1_rt_session, on_text=_on_text)
+                    resp = rt["text"]
+                    _box.markdown(resp)
+                    metrics = {**rt["usage"], "latencyMs": rt["latencyMs"], "toolCalls": len(rt["tool_calls"])}
+                    for _name in rt["tool_calls"]:
+                        tool_spans.record(_name, _s, {"source": "agentcore-runtime"})
+                    st.caption(f"🔧 Tools called by the runtime: {', '.join(rt['tool_calls']) or 'none'} · session `{rt['session_id']}`")
+                except Exception as e:
+                    resp = f"⚠ AgentCore Runtime call failed: {e}"
+                    _box.markdown(resp)
+                    metrics = {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0, "latencyMs": 0, "toolCalls": 0}
+            else:
+                resp, metrics = stream_chat(st.session_state.m4p1_agent, prompt, "Processing...")
+                metrics["toolCalls"] = tool_counter[0]
             wall_time = (_t.time() - _s) * 1000
             metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
-            metrics["toolCalls"] = tool_counter[0]
             _ended = time.time()
         # Send the trace (spans) to CloudWatch Logs and the metrics to CloudWatch.
         pub = telemetry.publish_interaction(
@@ -198,6 +232,15 @@ Every interaction emits latency, token, and tool metrics and records a Session �
                 st.json(pub["spans"])
         else:
             st.warning(f"Telemetry was NOT sent to CloudWatch: {pub['error']}")
+        if _use_runtime:
+            _rid = runtime_client.runtime_id()
+            _console = f"https://{runtime_client.REGION}.console.aws.amazon.com/cloudwatch/home?region={runtime_client.REGION}"
+            st.caption(
+                f"🛰 Runtime telemetry (arrives in 1 to 3 minutes): traces in Transaction Search (`aws/spans`, session.id = "
+                f"`{st.session_state.m4p1_rt_session}`), runtime logs in `{runtime_client.runtime_log_group()}`, "
+                f"vended logs in `/aws/vendedlogs/bedrock-agentcore/runtime/APPLICATION_LOGS/{_rid}` and `.../USAGE_LOGS/{_rid}`. "
+                f"[GenAI Observability dashboard]({_console}#gen-ai-observability/agent-core)"
+            )
         with st.container(border=True):
             mc1, mc2, mc3, mc4, mc5 = st.columns(5)
             mc1.metric("⬇️ Input", f"{metrics.get('inputTokens', 0):,}")
@@ -298,7 +341,7 @@ A circuit breaker trips when the agent makes too many repeated tool calls, stopp
 # PART 3: Evaluation
 # =============================================================================
 elif part == "Part 3 — Evaluation":
-    part_header("LLM-as-judge evaluation", "Automated quality scoring of agent responses.")
+    part_header("AgentCore Evaluations", "Built-in evaluators score real AgentCore Runtime traces.")
 
     diagram_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "demos", "module4-observability", "diagrams", "part4_evaluation.png")
     with st.expander("📐 Architecture Diagram", expanded=False):
@@ -310,101 +353,89 @@ elif part == "Part 3 — Evaluation":
                 st.info("Diagram not available.")
         with tab_about:
             st.markdown("""
-An automated judge scores responses on correctness, helpfulness, and tool selection (0.0–1.0), publishing scores to CloudWatch for continuous quality tracking and regression alerts.
+The query is sent to the deployed agent on AgentCore Runtime. Its OpenTelemetry spans are read back from CloudWatch Transaction Search and scored by the AgentCore **built-in evaluators** through the `Evaluate` API (on-demand evaluation). The same evaluators also run continuously through the online evaluation config, which writes results to CloudWatch Logs.
 
-**Try it:** Run the automated test suite to see per-evaluator scores and the pass/fail quality threshold.
+**Try it:** Evaluate a query, wait for the spans to arrive (1 to 3 minutes), then check the online evaluation results a few minutes later.
 """)
         with tab_prompts:
             render_sample_prompts('m4p3', target_key="m4p3_query", action_label="Use", note="Click **Use** to load a query into the box below, then press 🧪 Evaluate.")
-    from agentcore_utils import AgentCoreEvaluator, get_agentcore_status
-    status = get_agentcore_status()
-
-    with st.expander("📐 Built-in Evaluators (deployed)", expanded=False):
-        st.markdown("""
-**AgentCore Online Evaluation Config: `mladas_comprehensive_eval`**
-
-These built-in evaluators run automatically on agent traces in production:
-
-| Evaluator | Level | What it measures |
-|-----------|-------|-----------------|
-| `Builtin.Correctness` | TRACE | Factual accuracy of the response |
-| `Builtin.Helpfulness` | TRACE | How useful and actionable the response is |
-| `Builtin.Coherence` | TRACE | Logical consistency of the response |
-| `Builtin.ToolSelectionAccuracy` | TOOL_CALL | Whether the right tool was chosen |
-| `Builtin.GoalSuccessRate` | SESSION | Whether the user's overall goal was achieved |
-
-These evaluate real OpenTelemetry traces emitted by agents on AgentCore Runtime.
-For this interactive demo, we use a local LLM-as-judge that scores responses immediately.
-        """)
-
-    st.info("🧪 LLM-as-judge evaluates agent responses using the same dimensions as the built-in AgentCore evaluators.")
-
+    _oe = runtime_client.online_eval_id()
+    with st.expander("📐 Built-in evaluators (online evaluation config)", expanded=False):
+        st.markdown(
+            (f"**Online evaluation config:** `{_oe}` (sampling 100%, results in `{runtime_client.online_eval_log_group()}`)\n\n" if _oe else
+             "**Online evaluation config:** not deployed\n\n")
+            + "| Evaluator | Level | What it measures |\n|---|---|---|\n"
+            + "\n".join(f"| `{n}` | {lvl} | {d} |" for n, lvl, d in runtime_client.BUILTIN_EVALUATORS)
+        )
     if "m4p3_results" not in st.session_state:
         st.session_state.m4p3_results = []
-
     if "m4p3_query" not in st.session_state:
         from sample_prompts import PROMPTS
         st.session_state.m4p3_query = PROMPTS["m4p3"][0]["prompt"]
     test_query = st.text_input("Query to evaluate:", key="m4p3_query")
-
-    if st.button("🧪 Evaluate", key="m4p3_eval"):
-        with st.spinner("Running evaluation (5 dimensions)..."):
-            agent = create_agent("You are a TechMart support agent. TechMart Hub v2.1.x has Wi-Fi bug — update to v3.0.1. Be helpful and concise.")
-            agent_resp = chat_response(agent, test_query)
-
-            from strands import Agent as _A
-            import json as _json
-
-            judge_model = make_model("judge", max_tokens=1024)
-            judge = _A(
-                model=judge_model,
-                system_prompt="""You are an agent evaluator scoring responses on 5 dimensions matching AgentCore built-in evaluators.
-
-Score each dimension 0.0 to 1.0:
-1. **Correctness** — Is the response factually accurate?
-2. **Helpfulness** — Is it useful and actionable for the user?
-3. **Coherence** — Is it logically consistent and well-structured?
-4. **ToolSelection** — Did the agent use appropriate tools (or correctly not use tools)?
-5. **GoalSuccess** — Did the response achieve what the user was asking for?
-
-Return ONLY a JSON object with these exact keys:
-{"Correctness": 0.X, "Helpfulness": 0.X, "Coherence": 0.X, "ToolSelection": 0.X, "GoalSuccess": 0.X, "explanation": "brief reasoning"}
-""",
-            )
-            judge_resp = str(judge(f"User query: {test_query}\n\nAgent response: {agent_resp}\n\nScore this response."))
-
-            scores = {"Correctness": 0.5, "Helpfulness": 0.5, "Coherence": 0.5, "ToolSelection": 0.5, "GoalSuccess": 0.5}
-            explanation = ""
+    if not runtime_client.is_configured():
+        st.warning("The AgentCore Runtime agent is not deployed (agents/techmartagent), so there are no traces to evaluate.")
+    elif st.button("🧪 Evaluate", key="m4p3_eval"):
+        sid = runtime_client.new_session_id()
+        with st.status("Running AgentCore evaluation...", expanded=True) as status_box:
+            st.write(f"1. Invoking AgentCore Runtime (session `{sid}`)")
             try:
-                if "{" in judge_resp:
-                    parsed = _json.loads(judge_resp[judge_resp.index("{"):judge_resp.rindex("}") + 1])
-                    for key in scores:
-                        if key in parsed:
-                            scores[key] = float(parsed[key])
-                    explanation = parsed.get("explanation", "")
-            except Exception:
-                pass
-
-            st.session_state.m4p3_results.append({"scores": scores, "explanation": explanation, "query": test_query, "response": agent_resp})
-            st.rerun()
-
+                rt = runtime_client.invoke_runtime(test_query, sid)
+            except Exception as e:
+                status_box.update(label=f"Runtime call failed: {e}", state="error")
+                st.stop()
+            st.write(f"   Tools called: {', '.join(rt['tool_calls']) or 'none'}")
+            st.write("2. Waiting for the session's spans in CloudWatch Transaction Search (usually 1 to 3 minutes)")
+            _tick = st.empty()
+            spans = runtime_client.wait_for_spans(sid, timeout_s=300, interval_s=15,
+                                                  on_tick=lambda n: _tick.caption(f"   spans found: {n}"))
+            if not spans:
+                status_box.update(label="Spans did not arrive within 5 minutes; try 'Check online results' later.", state="error")
+                st.session_state.m4p3_results.append({"query": test_query, "response": rt["text"], "session_id": sid,
+                                                      "rows": [], "spans": 0, "online": []})
+                st.stop()
+            st.write(f"3. Scoring {len(spans)} spans with {len(runtime_client.BUILTIN_EVALUATORS)} built-in evaluators")
+            rows = runtime_client.evaluate(spans, [e[0] for e in runtime_client.BUILTIN_EVALUATORS])
+            status_box.update(label="Evaluation complete", state="complete")
+        st.session_state.m4p3_results.append({"query": test_query, "response": rt["text"], "session_id": sid,
+                                              "rows": rows, "spans": len(spans), "online": []})
+        st.rerun()
     # Display results persistently
     if st.session_state.m4p3_results:
         for i, result in enumerate(reversed(st.session_state.m4p3_results)):
             with st.container(border=True):
-                st.caption(f"**Query:** {result['query']}")
-                st.markdown(f"**Agent:** {result['response'][:300]}...")
-                mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-                for col, (name, score) in zip([mc1, mc2, mc3, mc4, mc5], result["scores"].items()):
-                    icon = "🟢" if score >= 0.75 else "🟡" if score >= 0.5 else "🔴"
-                    col.metric(f"{icon} {name}", f"{score:.2f}")
-                avg = sum(result["scores"].values()) / len(result["scores"])
-                st.progress(avg, text=f"Overall: {avg:.2f} / 1.00")
-                if result.get("explanation"):
-                    st.caption(f"💬 {result['explanation']}")
+                st.caption(f"**Query:** {result['query']} · session `{result['session_id']}` · {result['spans']} spans")
+                st.markdown(f"**Agent (AgentCore Runtime):** {result['response'][:400]}")
+                rows = [r for r in result["rows"] if r.get("value") is not None]
+                if rows:
+                    by_eval = {}
+                    for r in rows:
+                        by_eval.setdefault(r["evaluator"], []).append(r)
+                    cols = st.columns(len(by_eval))
+                    for col, (name, rs) in zip(cols, by_eval.items()):
+                        v = sum(r["value"] for r in rs) / len(rs)
+                        icon = "🟢" if v >= 0.75 else "🟡" if v >= 0.5 else "🔴"
+                        col.metric(f"{icon} {name.replace('Builtin.', '')}", f"{v:.2f}", help=rs[0]["label"])
+                    avg = sum(r["value"] for r in rows) / len(rows)
+                    st.progress(min(max(avg, 0.0), 1.0), text=f"Overall: {avg:.2f} / 1.00 (AgentCore on-demand evaluation)")
+                    with st.expander("💬 Evaluator explanations", expanded=False):
+                        for r in result["rows"]:
+                            label = f"{r['value']:.2f} {r['label']}" if r.get("value") is not None else "error"
+                            st.markdown(f"**{r['evaluator']}** · {label}  \n{r['explanation'] or r['error']}")
+                errors = [r for r in result["rows"] if r.get("value") is None and r.get("error")]
+                for r in errors:
+                    st.warning(f"{r['evaluator']}: {r['error']}")
+                if runtime_client.online_eval_id():
+                    if st.button("🔄 Check online evaluation results", key=f"m4p3_online_{result['session_id']}"):
+                        with st.spinner("Querying online evaluation results..."):
+                            result["online"] = runtime_client.fetch_online_results(result["session_id"])
+                    if result["online"]:
+                        st.markdown(f"**Online evaluation results** ({len(result['online'])} records, written by `{runtime_client.online_eval_id()}`)")
+                        st.json(result["online"], expanded=False)
+                    else:
+                        st.caption("Online evaluation runs after 5 minutes of session inactivity; results can take a few more minutes.")
             if i >= 2:
                 break  # Show last 3 evaluations
-
 
 # =============================================================================
 # PART 4: Golden Dataset Baseline (#4)

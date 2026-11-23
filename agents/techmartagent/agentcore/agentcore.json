@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.agentcore.aws.dev/v1/agentcore.json",
+  "name": "techmartagent",
+  "version": 1,
+  "managedBy": "CDK",
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "techmartagent"
+  },
+  "runtimes": [
+    {
+      "name": "techmart_support",
+      "build": "CodeZip",
+      "entrypoint": "main.py",
+      "codeLocation": "app/techmart_support/",
+      "runtimeVersion": "PYTHON_3_14",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "instrumentation": {
+        "enableOtel": true
+      }
+    }
+  ],
+  "memories": [],
+  "knowledgeBases": [],
+  "credentials": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [
+    {
+      "name": "techmart_online_eval",
+      "agent": "techmart_support",
+      "evaluators": [
+        "Builtin.Correctness",
+        "Builtin.Helpfulness",
+        "Builtin.Coherence",
+        "Builtin.ToolSelectionAccuracy",
+        "Builtin.GoalSuccessRate"
+      ],
+      "samplingRate": 100,
+      "enableOnCreate": true
+    }
+  ],
+  "agentCoreGateways": [],
+  "policyEngines": [],
+  "configBundles": [],
+  "abTests": [],
+  "harnesses": [],
+  "datasets": [],
+  "payments": []
+}
