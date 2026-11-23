@@ -60,6 +60,7 @@ def _load_cfn_outputs() -> dict:
         "mladas-agentcore-guardrail",
         "m3-demo-cognito",
         "m3-demo-verified-permissions",
+        "m4-demo-observability",
     ]
     outputs = {}
     try:

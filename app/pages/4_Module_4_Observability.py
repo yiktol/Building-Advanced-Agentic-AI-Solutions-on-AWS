@@ -12,6 +12,7 @@ import boto3
 from style import inject_css, part_header, live_services_caption, show_diagram, render_sample_prompts, take_sample_prompt
 from agent_utils import create_agent, chat_response, chat_response_with_metrics, make_model, estimate_cost, MODEL_ID, stream_chat
 from strands import tool
+import telemetry
 
 st.set_page_config(page_title="Module 4: Observability", page_icon="4️⃣", layout="wide")
 inject_css()
@@ -38,7 +39,7 @@ with st.sidebar:
         st.rerun()
 
 REGION = os.environ.get("AWS_REGION", "ap-southeast-1")
-METRICS_NAMESPACE = os.environ.get("METRICS_NAMESPACE", "AgentMetrics")
+METRICS_NAMESPACE = telemetry.metrics_namespace()
 
 # =============================================================================
 # PART 1: Metrics
@@ -116,23 +117,37 @@ Every interaction emits latency, token, and tool metrics and records a Session �
     if "m4p1_tool_counter" not in st.session_state:
         st.session_state.m4p1_tool_counter = [0]
     tool_counter = st.session_state.m4p1_tool_counter
+    # Tool spans for the current request (same thread-safety reason as the counter).
+    if "m4p1_tool_spans" not in st.session_state:
+        st.session_state.m4p1_tool_spans = telemetry.ToolSpanRecorder()
+    tool_spans = st.session_state.m4p1_tool_spans
+    if "m4p1_session_id" not in st.session_state:
+        st.session_state.m4p1_session_id = telemetry.new_session_id()
+        st.session_state.m4p1_traces = []
 
     if st.session_state.m4p1_agent is None:
         @tool
         def search_products(query: str) -> str:
             """Search products. Args: query: search term"""
             tool_counter[0] += 1
-            return "TechMart Pro 15 ($799, i7/16GB), Air ($599, i5/8GB), Hub ($149, Wi-Fi 6), Titan ($1299, RTX 4060)"
+            _t0 = time.time()
+            result = "TechMart Pro 15 ($799, i7/16GB), Air ($599, i5/8GB), Hub ($149, Wi-Fi 6), Titan ($1299, RTX 4060)"
+            tool_spans.record("search_products", _t0, {"query": query}, result={"chars": len(result)})
+            return result
 
         @tool
         def check_inventory(product_name: str) -> str:
             """Check product inventory. Args: product_name: product to check"""
             tool_counter[0] += 1
+            _t0 = time.time()
             stock = {"pro": "In stock (23 units)", "air": "In stock (45 units)", "hub": "Low stock (3 units)", "titan": "In stock (12 units)"}
+            result = f"{product_name}: Out of stock"
             for k, v in stock.items():
                 if k in product_name.lower():
-                    return f"{product_name}: {v}"
-            return f"{product_name}: Out of stock"
+                    result = f"{product_name}: {v}"
+                    break
+            tool_spans.record("check_inventory", _t0, {"product_name": product_name}, result={"answer": result})
+            return result
 
         st.session_state.m4p1_agent = create_agent(
             "You are a TechMart sales agent. Use search_products to find products and check_inventory to verify availability. Be helpful and concise.",
@@ -157,6 +172,7 @@ Every interaction emits latency, token, and tool metrics and records a Session �
     if prompt := (st.chat_input("Ask about products...", submit_mode="disable") or take_sample_prompt('m4p1')):
         st.session_state.m4p1_msgs.append({"role": "user", "content": prompt})
         tool_counter[0] = 0
+        tool_spans.reset()
         with st.chat_message("user"):
             st.markdown(prompt)
         with st.chat_message("assistant"):
@@ -165,6 +181,23 @@ Every interaction emits latency, token, and tool metrics and records a Session �
             wall_time = (_t.time() - _s) * 1000
             metrics["latencyMs"] = metrics.get("latencyMs", 0) or int(wall_time)
             metrics["toolCalls"] = tool_counter[0]
+            _ended = time.time()
+        # Send the trace (spans) to CloudWatch Logs and the metrics to CloudWatch.
+        pub = telemetry.publish_interaction(
+            st.session_state.m4p1_session_id, len(st.session_state.m4p1_traces) + 1, prompt,
+            _ended - wall_time / 1000, _ended, metrics, list(tool_spans.spans),
+        )
+        st.session_state.m4p1_traces.append(pub)
+        if pub["ok"]:
+            st.caption(f"📡 Trace `{pub['trace_id'][:12]}…` ({len(pub['spans'])} spans) written to CloudWatch Logs `{pub['log_group']}`.")
+            if pub.get("metrics_error"):
+                st.warning(f"Metrics were NOT sent to `{METRICS_NAMESPACE}`: {pub['metrics_error']}")
+            else:
+                st.caption(f"Metrics sent to CloudWatch namespace `{METRICS_NAMESPACE}`.")
+            with st.expander("🔍 Spans sent to CloudWatch", expanded=False):
+                st.json(pub["spans"])
+        else:
+            st.warning(f"Telemetry was NOT sent to CloudWatch: {pub['error']}")
         with st.container(border=True):
             mc1, mc2, mc3, mc4, mc5 = st.columns(5)
             mc1.metric("⬇️ Input", f"{metrics.get('inputTokens', 0):,}")

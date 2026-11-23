@@ -77,6 +77,12 @@ Resources:
                 Action: ["logs:*"]
                 Resource: "*"
               - Effect: Allow
+                Action: ["cloudwatch:PutMetricData"]
+                Resource: "*"
+                Condition:
+                  StringLike:
+                    "cloudwatch:namespace": ["m4-demo/*", "m5-demo/*"]
+              - Effect: Allow
                 Action: ["dynamodb:*"]
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/m3-demo-*"
               - Effect: Allow
