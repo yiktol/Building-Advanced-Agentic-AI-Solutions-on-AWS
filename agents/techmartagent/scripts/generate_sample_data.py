@@ -154,6 +154,12 @@ def span_count(spans: list[dict]) -> int:
     return sum(1 for s in spans if "spanId" in s)
 
 
+def spans_ready(spans: list[dict]) -> bool:
+    """Agent spans (invoke_agent + chat) present; Evaluate rejects input without them."""
+    names = [str(s.get("name", "")) for s in spans if "spanId" in s and "kind" in s]
+    return any(n.startswith("invoke_agent") for n in names) and any(n.startswith("chat") for n in names)
+
+
 def online_results(logs, log_group: str, session_id: str) -> list[dict]:
     rows, kwargs = [], {"logGroupName": log_group, "filterPattern": f'"{session_id}"',
                         "startTime": int((time.time() - 4 * 3600) * 1000)}
@@ -251,10 +257,13 @@ def main():
             time.sleep(20)
             for s in list(pending):
                 spans = query_spans(logs, s["session_id"])
-                if span_count(spans) > 0:
+                # Complete once the agent spans are there and the count stopped growing since the last poll.
+                if spans_ready(spans) and span_count(spans) == s.get("_last", -1):
                     s["spans"] = spans
                     pending.remove(s)
                     ok(f"[{s['name']}] {span_count(spans)} spans after {int(time.time() - started)}s")
+                else:
+                    s["_last"] = span_count(spans) if spans_ready(spans) else -1
             if pending:
                 info(3, f"waiting for {len(pending)} session(s)…")
         time.sleep(15)  # let late spans land, then take a final snapshot

@@ -156,17 +156,33 @@ def fetch_session_spans(session_id: str) -> list[dict]:
     return spans
 
 
-def wait_for_spans(session_id: str, timeout_s: int = 240, interval_s: int = 15, on_tick=None) -> list[dict]:
-    """Poll until the session's spans are ingested. Ingestion usually takes 1 to 3 minutes."""
+def spans_ready(spans: list[dict]) -> bool:
+    """True once the agent's own spans are present.
+
+    Records for a session can arrive in pieces: the runtime service span and log records may land
+    before the Strands agent spans. Evaluate rejects input without model/agent invocation spans
+    ("Provided input has no spans to evaluate"), so wait for an invoke_agent span and a chat span.
+    """
+    names = [str(s.get("name", "")) for s in spans if "spanId" in s and "kind" in s]
+    return any(n.startswith("invoke_agent") for n in names) and any(n.startswith("chat") for n in names)
+
+
+def wait_for_spans(session_id: str, timeout_s: int = 300, interval_s: int = 15, on_tick=None) -> list[dict]:
+    """Poll until the session's agent spans are in CloudWatch and the count has stopped growing.
+
+    Ingestion usually takes 1 to 3 minutes. Returns whatever was found when the timeout expires
+    (check ``spans_ready`` on the result).
+    """
     deadline = time.time() + timeout_s
     spans: list[dict] = []
+    last = -1
     while time.time() < deadline:
         spans = fetch_session_spans(session_id)
         if on_tick:
             on_tick(len(spans))
-        if spans:
-            time.sleep(interval_s)  # let the rest of the trace land, then take one final snapshot
-            return fetch_session_spans(session_id)
+        if spans_ready(spans) and len(spans) == last:
+            return spans  # complete: agent spans present and nothing new since the last poll
+        last = len(spans) if spans_ready(spans) else -1
         time.sleep(interval_s)
     return spans
 

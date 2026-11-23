@@ -388,9 +388,9 @@ The query is sent to the deployed agent on AgentCore Runtime. Its OpenTelemetry 
             st.write("2. Waiting for the session's spans in CloudWatch Transaction Search (usually 1 to 3 minutes)")
             _tick = st.empty()
             spans = runtime_client.wait_for_spans(sid, timeout_s=300, interval_s=15,
-                                                  on_tick=lambda n: _tick.caption(f"   spans found: {n}"))
-            if not spans:
-                status_box.update(label="Spans did not arrive within 5 minutes; try 'Check online results' later.", state="error")
+                                                  on_tick=lambda n: _tick.caption(f"   records found: {n} (waiting for the agent's invoke_agent and chat spans)"))
+            if not runtime_client.spans_ready(spans):
+                status_box.update(label="The agent's spans did not arrive within 5 minutes; try 'Check online evaluation results' later.", state="error")
                 st.session_state.m4p3_results.append({"query": test_query, "response": rt["text"], "session_id": sid,
                                                       "rows": [], "spans": 0, "online": []})
                 st.stop()
