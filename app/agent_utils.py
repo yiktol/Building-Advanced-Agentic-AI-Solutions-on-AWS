@@ -147,9 +147,8 @@ def _partial_text_from_agent(agent: Agent) -> str:
 
 
 _MAX_TOKENS_NOTE = (
-    "\n\n> ⚠️ _Response was cut off because it hit the max-tokens limit. "
-    "This is expected in this demo as the context grows — raise **Max tokens** "
-    "on the Home page, or start a new conversation._"
+    "\n\n> ⚠ _Response was cut off because this single reply reached the max output tokens "
+    "limit. Raise **Max tokens** on the Home page, or ask for a shorter answer._"
 )
 
 

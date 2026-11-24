@@ -38,6 +38,8 @@ with st.sidebar:
 # =============================================================================
 # PART 1: Context Growth
 # =============================================================================
+M2P1_MAX_OUTPUT_TOKENS = 8192  # accepted by every generation model on the Home page
+
 if part == "Part 1 — Context Growth":
     part_header("Context as a finite resource", "Watch token count grow with each exchange.")
 
@@ -65,8 +67,17 @@ Context is a finite resource. As a long conversation accumulates, token counts r
         st.session_state.m2p1_metrics = []
 
     if st.session_state.m2p1_agent is None:
-        st.session_state.m2p1_agent = create_agent(
-            "You are an expert travel planner. Provide detailed plans with specific numbers, dates, and logistics. Reference earlier conversation context."
+        # The demo is about INPUT tokens growing across turns. Long single replies only hit the
+        # max *output* tokens limit (the sample prompts produced 4.7k-7.3k tokens per answer),
+        # so ask for compact answers and give this part a higher output ceiling.
+        import agent_utils as _au
+        st.session_state.m2p1_agent = Agent(
+            model=make_model("generation", max_tokens=max(_au._get_max_tokens(), M2P1_MAX_OUTPUT_TOKENS)),
+            system_prompt=(
+                "You are an expert travel planner. Provide plans with specific numbers, dates, and logistics, "
+                "and reference earlier conversation context. Keep each reply under 500 words: use compact "
+                "tables and short bullet points, no long prose."
+            ),
         )
 
     for idx, msg in enumerate(st.session_state.m2p1_msgs):
