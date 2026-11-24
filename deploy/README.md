@@ -23,7 +23,7 @@ User → CloudFront → ALB (HTTPS, origin verify) → EC2 (Streamlit :8501)
 |------|---------|
 | `deploy.sh` | Deploy full stack (uploads templates, creates/updates CFN) |
 | `cleanup.sh` | Tear down infrastructure (empties S3, deletes stack + secrets) |
-| `sync-ec2.sh` | Sync code + .env to running EC2 via SSM (git fetch + reset --hard, pip install -r app/requirements.txt, restart) |
+| `sync-ec2.sh` | Sync code + .env to every InService instance in the ASG via SSM (git fetch + reset --hard, pip install -r app/requirements.txt, rolling restart with health check) |
 | `generate-env.sh` | Generate repo-root `.env` from deployed CloudFormation stack outputs |
 | `cfn-main.yaml` | Root nested stack (reads SSM params, wires sub-stacks) |
 | `cfn-alb-asg.yaml` | ALB + ASG + EC2 Launch Template with UserData |
